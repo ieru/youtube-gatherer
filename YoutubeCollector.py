@@ -1,11 +1,11 @@
-import os
-
 __author__ = 'antoniofsanjuan'
 # -*- coding: utf-8 -*-
 
+import os
 import sys
 import time
 import codecs
+import HTMLParser
 
 from apiclient.errors import HttpError
 from YoutubeSearch import YoutubeSearch
@@ -13,6 +13,8 @@ from gdata.youtube import service
 from plus import GooglePlusService
 from YoutubeComments import GoogleCommentsService
 from oauth2client.tools import argparser
+
+
 
 USERNAME = 'uahytcollector@gmail.com'
 PASSWORD = 'u4hytc0ll3ct0r'
@@ -111,6 +113,8 @@ def main(argv):
         arr_videos = yt_search_service.youtube_search(args)
 
         yt_search_service.printYoutubeInfo2CSVFile(arr_videos, yt_videos_csv_file)
+
+        exit(0)
 
     except HttpError, e:
         print "An HTTP error %d occurred:\n%s" % (e.resp.status, e.content)

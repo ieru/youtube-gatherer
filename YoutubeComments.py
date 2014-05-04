@@ -10,7 +10,7 @@ import gdata.service
 import mysql.connector
 import time
 import datetime
-
+import HTMLParser
 
 class GoogleCommentsService(object):
 
@@ -60,8 +60,8 @@ class GoogleCommentsService(object):
         # Remove BOM character
         yt_content = yt_content.replace('\xef\xbb\xbf', '')
 
-        # Escapamos las dobles comillas ya que se utilizaran para separar englobar campos en el fichero csv
-        yt_content = yt_content.replace('"', '\\"')
+        # Remove double quotes because couse problems with comment delimiters
+        yt_content = yt_content.replace('"', '')
         yt_content = '"%s"' % yt_content
 
         last_pos = yt_comment.id.text.rfind('/')
@@ -86,12 +86,15 @@ class GoogleCommentsService(object):
         csv_format_string = "%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\n"
         arr_gp_comment_fields = gp_service.getArrayGooglePlusCommentFields(gp_comment)
 
+        htmlParser = HTMLParser.HTMLParser()
         print arr_gp_comment_fields[4]
-        formated_published_time = self.formatYoutubeDate(arr_gp_comment_fields[3])
+        formatted_published_time = self.formatYoutubeDate(arr_gp_comment_fields[3])
+        parsed_comment_body = htmlParser.unescape(arr_gp_comment_fields[2])
+
 
         print "DEBUG: content: '%s'" % arr_gp_comment_fields[2]
         return csv_format_string % (arr_gp_comment_fields[0], arr_gp_comment_fields[1],
-                                    arr_gp_comment_fields[2], formated_published_time, arr_gp_comment_fields[4],
+                                    parsed_comment_body, formatted_published_time, arr_gp_comment_fields[4],
                                     yt_comment_id, num_replies, video_id)
 
     def executeLoadInBD(self, query):
