@@ -9,6 +9,9 @@ import HTMLParser
 
 from apiclient.errors import HttpError
 from YoutubeSearch import YoutubeSearch
+from YoutubeChannel import YoutubeChannel
+from SocialWebSites import SocialWebSites
+
 from gdata.youtube import service
 from plus import GooglePlusService
 from YoutubeComments import GoogleCommentsService
@@ -58,7 +61,29 @@ def main(argv):
     reload(sys)
     sys.setdefaultencoding("utf-8")
 
+    # ----- SOCIAL WEBS -------
+
+    video_url = "https://www.youtube.com/watch?v=%s"
+    social_web_service = SocialWebSites()
+
+    #social_web_service.getFacebookLinkSharedCount(video_url)
+    #social_web_service.getTwitterLinkSharedCount(video_url)
+    #social_web_service.getLinkedlnLinkSharedCount(video_url)
+
     yt_search_service = YoutubeSearch()
+
+    # ----- USER --------
+
+    #yt_service = service.YouTubeService()
+    #user_entry = yt_service.GetYouTubeUserEntry(username='vegetta777')
+    #yt_search_service.PrintUserEntry(user_entry)
+
+    # --- CHANNELS ----
+
+    yt_channel_service = YoutubeChannel()
+    yt_channel_service.get_channel_info("UCam8T03EOFBsNdR0thrFHdQ")
+
+
     yt_comments_service = GoogleCommentsService(argv)
     gp_service = GooglePlusService(argv)
 
@@ -80,6 +105,8 @@ def main(argv):
     query_insert_yt_video_info = "LOAD DATA INFILE 'G:/TFC/yt_videos.csv' INTO TABLE YT_VIDEOS " \
                                  "FIELDS TERMINATED BY '\\t' OPTIONALLY ENCLOSED BY '\"' LINES TERMINATED BY '\\n' "
 
+    #query_insert_yt_video_info = "INSERT INTO YT_VIDEO_SHARES (VIDEO_ID)"
+
     gp_csv_file = codecs.open("g:\TFC\gp_comments.csv", 'wb', 'utf-8')
     yt_csv_file = codecs.open("g:\TFC\yt_comments.csv", 'wb', 'utf-8')
 
@@ -96,6 +123,8 @@ def main(argv):
     ### Youtube Videos Search ###
     #############################
     yt_videos_csv_file = codecs.open("g:\TFC\yt_videos.csv", 'wb', 'utf-8')
+    yt_channels_csv_file = codecs.open("g:\TFC\yt_channel.csv", 'wb', 'utf-8')
+    yt_social_csv_file = codecs.open("g:\TFC\yt_social.csv", 'wb', 'utf-8')
 
     subject_input = raw_input('What are you looking for? ')
     order_input = raw_input('What order do you wish (date, rating, relevance, title, videoCount, viewCount)? ')
@@ -114,8 +143,6 @@ def main(argv):
 
         yt_search_service.printYoutubeInfo2CSVFile(arr_videos, yt_videos_csv_file)
 
-        exit(0)
-
     except HttpError, e:
         print "An HTTP error %d occurred:\n%s" % (e.resp.status, e.content)
 
@@ -127,6 +154,25 @@ def main(argv):
     for video in arr_videos:
         video_id = video['id']
         printLog("Processing video with id: %s" % video_id)
+
+        channel_id = video['snippet']['channelId']
+        printLog("Printing channel info into file... ")
+        yt_channel_service.printChannelInfo2CSVFile(channel_id, yt_channel_service.get_channel_info(channel_id),
+                                                    yt_channels_csv_file)
+
+        channel_id = video['snippet']['channelId']
+        print "Retrieving video info %s and channel detail %s" % (video['id'], video['snippet']['channelId'])
+        yt_channel_service.get_channel_info(channel_id)
+        print "Retrieving \"Shares\" from social websites..."
+        n_fb_shares = social_web_service.getFacebookLinkSharedCount(video_url % video['id'])
+        n_tw_shares = social_web_service.getTwitterLinkSharedCount(video_url % video['id'])
+        n_lk_shares = social_web_service.getLinkedlnLinkSharedCount(video_url % video['id'])
+
+        social_web_service.printSocialSharesInfo2CSVFile(video['id'], yt_social_csv_file)
+
+        print "\n"
+
+        exit(0)
 
         if not b_avoid_ddbb:
             printLog("Deleting database comments and info for video...")

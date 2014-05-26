@@ -94,7 +94,7 @@ class YoutubeSearch():
 
     def printYoutubeInfo2CSVFile(self, arr_yt_videos_info, csv_file):
 
-        csv_format_string = "%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\n"
+        csv_format_string = "%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\n"
 
         for yt_video_info in arr_yt_videos_info:
             #print "Video Id: %s" % yt_video_info["id"]
@@ -109,7 +109,10 @@ class YoutubeSearch():
             yt_text_description = str(yt_text_description).replace('"', '\\"')
             yt_text_description = '"%s"' % yt_text_description
 
+            yt_text_channelId = yt_video_info["snippet"]["channelId"]
+
             csv_line = csv_format_string % (yt_video_info["id"],
+                                            yt_text_channelId,
                                             yt_text_title,
                                             yt_text_description,
                                             self.durationToSeconds(yt_video_info["contentDetails"]["duration"]),
@@ -156,3 +159,45 @@ class YoutubeSearch():
         #print "Playlists:\n", "\n".join(playlists), "\n"
 
         return videos
+
+    def PrintUserEntry(self, entry):
+      # print required fields where we know there will be information
+      print 'URI: %s\n' % entry.id.text
+      print 'Age: %s\n' % (entry.age, '')[entry.age is not None]
+      print 'Gender: %s\n' % ('', entry.gender)[entry.gender is not None]
+      print 'Location: %s\n' % ('', entry.location.text)[entry.location is not None]
+
+      # check if there is information in the other fields and if so print it
+      if entry.first_name:
+        print 'First Name: %s\n' % entry.first_name.text
+      if entry.last_name:
+        print 'Last Name: %s\n' % entry.last_name.text
+      if entry.relationship:
+        print 'Relationship: %s\n' % entry.relationship.text
+      if entry.description:
+        print 'About me: %s\n' % entry.description.text
+      for link in entry.link:
+        if link.rel == 'related':
+          print 'Website: %s\n' % link.href
+      if entry.company:
+        print 'Company: %s\n' % entry.company.text
+      if entry.occupation:
+        print 'Occupation: %s\n' % entry.occupation.text
+      if entry.school:
+        print 'School: %s\n' % entry.school.text
+      if entry.hobbies:
+        print 'Hobbies: %s\n' % entry.hobbies.text
+      if entry.movies:
+        print 'Movies: %s\n' % entry.movies.text
+      if entry.music:
+        print 'Music: %s\n' % entry.music.text
+      if entry.books:
+        print 'Books: %s\n' % entry.books.text
+      if entry.hometown:
+        print 'Hometown: %s\n' % entry.hometown.text
+      if entry.statistics is not None:
+        print entry.statistics
+        #print 'Subscribers: %s\n' % entry.statistics['subscriberCount']
+        #print 'videoWatchCount: %s\n' % entry.statistics.videoWatchCount.text
+        #print 'viewCount: %s\n' % entry.statistics.viewCount.text
+        #print 'totalUploadViews: %s\n' % entry.statistics.totalUploadViews.text
