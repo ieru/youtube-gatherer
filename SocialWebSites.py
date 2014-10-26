@@ -70,8 +70,12 @@ class SocialWebSites():
     def printSocialSharesInfo2CSVFile(self, video_id, csv_file):
 
         video_url = "https://www.youtube.com/watch?v=%s"
-        csv_format_string = "%s\t%s\t%s\t%s\t%s\n"
+        csv_format_string = "%s\t%s\t%s\t%s\n"
         ts = time.time()
+
+        id_facebook = 1
+        id_twitter = 2
+        id_linkedln = 3
 
         n_fb_shares = self.getFacebookLinkSharedCount(video_url % video_id)
         n_tw_shares = self.getTwitterLinkSharedCount(video_url % video_id)
@@ -79,5 +83,8 @@ class SocialWebSites():
 
         str_timestamp = datetime.datetime.fromtimestamp(ts).strftime('%Y-%m-%d %H:%M:%S')
 
-        csv_file.write(csv_format_string % (video_id, n_fb_shares, n_tw_shares, n_lk_shares,
-                                            str_timestamp))
+        csv_file.write(csv_format_string % (video_id, n_fb_shares, str_timestamp, id_facebook))
+
+        csv_file.write(csv_format_string % (video_id, n_tw_shares, str_timestamp, id_twitter))
+
+        csv_file.write(csv_format_string % (video_id, n_lk_shares, str_timestamp, id_linkedln))

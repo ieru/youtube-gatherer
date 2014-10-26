@@ -109,7 +109,7 @@ class GooglePlusService(object):
           print 'Number of Activities: %d' % len( activities_document['items'])
           for activity in activities_document['items']:
             #print activity['id'], activity['object']['content']
-            getGooglePlusActitivyInfo(self._gp_service, activity['id'])
+            self.getGooglePlusActitivyInfo(self._gp_service, activity['id'])
 
 
     def __init__(self, argv):
@@ -117,7 +117,7 @@ class GooglePlusService(object):
         self._gp_service = None
         self._flags = None
 
-        print "Se ha llamado a  ____init____"
+        #print "Se ha llamado a  ____init____"
         self._gp_service, flags = sample_tools.init(
           argv, 'plus', 'v1', __doc__, __file__,
           scope='https://www.googleapis.com/auth/plus.me')

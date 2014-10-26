@@ -1,16 +1,23 @@
-__author__ = 'antoniofsanjuan'
+#!/usr/bin/env python
 # -*- coding: utf-8 -*-
 
+__author__ = 'antoniofsanjuan'
+
+import datetime
+import commands
 import os
 import sys
 import time
 import codecs
 import HTMLParser
+import getopt
+import dao.DAOYoutubeCollector
 
 from apiclient.errors import HttpError
 from YoutubeSearch import YoutubeSearch
 from YoutubeChannel import YoutubeChannel
 from SocialWebSites import SocialWebSites
+from dao.DAOYoutubeCollector import DAOYoutubeCollector
 
 from gdata.youtube import service
 from plus import GooglePlusService
@@ -18,26 +25,99 @@ from YoutubeComments import GoogleCommentsService
 from oauth2client.tools import argparser
 
 
-
 USERNAME = 'uahytcollector@gmail.com'
-PASSWORD = 'u4hytc0ll3ct0r'
-VIDEO_ID = 'eM8OCWmTqTY'  # '4_X6EyqXa2s'
+PASSWORD = 'x3jkW5.a'
+#VIDEO_ID = 'eM8OCWmTqTY'  # '4_X6EyqXa2s'
 
 date_time_format = "%Y%m%d_%H%M"
 date_time_sec_format = "%Y%m%d %H:%M:%S"
 
 date_time_log = time.strftime(date_time_format)
 
+_mode = "search"
+
 _DIR_LOG = "G:\TFC\LOGS"
 _file_log = None
 _file_log_name = '%s\ytCollector_%s.log' % (_DIR_LOG, date_time_log)
 
+_query_bulk_load_yt_comments = """LOAD DATA LOCAL INFILE '%s' IGNORE
+                                 INTO TABLE YT_COMMENTS CHARACTER SET utf8mb4 FIELDS TERMINATED BY '\\t'
+                                 OPTIONALLY ENCLOSED BY '"' LINES TERMINATED BY '\\n' """
+
+_query_bulk_load_gp_comments = """LOAD DATA LOCAL INFILE '%s' IGNORE
+                                 INTO TABLE GP_COMMENTS CHARACTER SET utf8mb4 FIELDS TERMINATED BY '\\t'
+                                 OPTIONALLY ENCLOSED BY '"' LINES TERMINATED BY '\\n' """
+
+_query_insert_yt_video_info = """LOAD DATA LOCAL INFILE '%s' IGNORE INTO TABLE YT_VIDEOS
+                                FIELDS TERMINATED BY '\\t'
+                                OPTIONALLY ENCLOSED BY '"' LINES TERMINATED BY '\\n' """
+
+_query_insert_yt_channel_info = """LOAD DATA LOCAL INFILE '%s' IGNORE
+                                  INTO TABLE YT_CHANNELS FIELDS TERMINATED BY '\\t'
+                                  OPTIONALLY ENCLOSED BY '"' LINES TERMINATED BY '\\n' """
+
+_query_insert_yt_social_shares = """LOAD DATA LOCAL INFILE '%s' IGNORE
+                                   INTO TABLE YT_SOCIAL_SHARES FIELDS TERMINATED BY '\\t'
+                                   OPTIONALLY ENCLOSED BY '"' LINES TERMINATED BY '\\n' """
+
+_yt_csv_file_path = "g:\\\TFC\\\DATA\\\yt_comments_%s.csv"
+_gp_csv_file_path = "g:\\\TFC\\\DATA\\\gp_comments_%s.csv"
+_yt_videos_csv_file_path = "g:\\\TFC\\\DATA\\\yt_videos_%s.csv"
+_yt_channels_csv_file_path = "g:\\\TFC\\\DATA\\\yt_channel_%s.csv"
+_yt_social_csv_file_path = "g:\\\TFC\\\DATA\\\yt_social_%s.csv"
+
+
+_gp_csv_file = None
+_yt_csv_file = None
+_yt_videos_csv_file = None
+_yt_channels_csv_file = None
+_yt_social_csv_file = None
+
+def printLogTime(msg, b_time):
+
+    global _file_log
+    date_sec = time.strftime(date_time_sec_format)
+
+    b_time = True if b_time is None else False
+
+    #msg = msg.replace('\xef\xbb\xbf', '')
+    if isinstance(msg, str):
+        msg = msg.decode("utf-8")
+    else:
+        msg = unicode(msg)
+
+    #msg = msg.decode('utf-8')
+
+    try:
+        if(b_time):
+            _file_log.write('[%s]: %s\n' % (date_sec, msg))
+        else:
+            _file_log.write('%s\n' % msg)
+    except UnicodeDecodeError:
+        print("--------------> Caracter no reconocido. Seguimos...")
+        _file_log.write('%s\n' % msg.decode('utf-8'))
+        sys.exc_clear()
+
+def printCommentsFile(msg):
+
+    global _yt_csv_file
+
+    if isinstance(msg, str):
+        msg = msg.decode("utf-8")
+    else:
+        msg = unicode(msg)
+
+    try:
+        _yt_csv_file.write('%s\n' % msg)
+    except UnicodeDecodeError:
+        print("--------------> Caracter no reconocido. Seguimos...")
+        _yt_csv_file.write('%s\n' % msg.decode('utf-8'))
+        sys.exc_clear()
+
 
 def printLog(msg):
-    date_sec = time.strftime(date_time_sec_format)
-    global _file_log
-    _file_log.write('[%s]: %s\n' % (date_sec, msg))
 
+    printLogTime(msg, True)
 
 def deleteVideoInfo(yt_service, video_id):
     query_delete_gp_video_comments = "DELETE FROM GP_COMMENTS WHERE VIDEO_ID = '%s'" % video_id
@@ -49,6 +129,63 @@ def deleteVideoInfo(yt_service, video_id):
     yt_service.executeLoadInBD(query_delete_yt_video_info)
 
 
+def openDataFiles(mode):
+    global _gp_csv_file
+    global _yt_csv_file
+    global _yt_videos_csv_file
+    global _yt_channels_csv_file
+    global _yt_social_csv_file
+
+    _gp_csv_file = codecs.open(_gp_csv_file_path, mode, 'utf-8')
+    _yt_csv_file = codecs.open(_yt_csv_file_path, mode, 'utf-8')
+    _yt_videos_csv_file = codecs.open(_yt_videos_csv_file_path, mode, 'utf-8')
+    _yt_channels_csv_file = codecs.open(_yt_channels_csv_file_path, mode, 'utf-8')
+    _yt_social_csv_file = codecs.open(_yt_social_csv_file_path, mode, 'utf-8')
+
+def closeDataFiles():
+    global _gp_csv_file
+    global _yt_csv_file
+    global _yt_videos_csv_file
+    global _yt_channels_csv_file
+    global _yt_social_csv_file
+
+    _gp_csv_file.close()
+    _yt_csv_file.close()
+    _yt_videos_csv_file.close()
+    _yt_channels_csv_file.close()
+    _yt_social_csv_file.close()
+
+
+
+def loadDataFilesInBD(yt_service):
+
+    printLog("Loading data videos file into database... ")
+    yt_service.executeLoadInBD(_query_insert_yt_video_info)
+
+    printLog("Loading youtube data comments into database...\n")
+    yt_service.executeLoadInBD(_query_bulk_load_yt_comments)
+
+    printLog("Loading google+ data comments into database...\n")
+    yt_service.executeLoadInBD(_query_bulk_load_gp_comments)
+
+    printLog("Loading channel info into database...\n")
+    yt_service.executeLoadInBD(_query_insert_yt_channel_info)
+
+    printLog("Loading social web-sites shares data into database...\n")
+    yt_service.executeLoadInBD(_query_insert_yt_social_shares)
+
+def loadVideos2Follow():
+
+    daoYoutubeCollector = DAOYoutubeCollector()
+
+    return daoYoutubeCollector.getYoutubeVideosToFollow()
+
+
+
+
+def usage():
+    print 'Usage: '+sys.argv[0]+' -m <auto|search>'
+
 ############################################
 ###############     MAIN    ################
 ############################################
@@ -57,9 +194,51 @@ def deleteVideoInfo(yt_service, video_id):
 ##      Si se utiliza la opcion IGNORE en el LOAD no hay problema en la carga, solo muestra esas lineas como warning
 
 def main(argv):
-
     reload(sys)
     sys.setdefaultencoding("utf-8")
+
+
+def main(argv):
+
+    try:
+        opts, args = getopt.getopt(argv[1:], 'hm:', ['help', 'mode='])
+        if not opts:
+            print 'No options supplied'
+            usage()
+    except getopt.GetoptError,e:
+        print e
+        usage()
+        sys.exit(2)
+
+    for opt, arg in opts:
+        if opt in ('-h', '--help'):
+            usage()
+            sys.exit(2)
+        elif opt in ('-m', '--mode'):
+            global _mode
+            _mode = arg
+
+    argv = []
+
+    print "MODE: %s" % _mode
+
+    global _query_bulk_load_yt_comments
+    global _query_bulk_load_gp_comments
+    global _query_insert_yt_video_info
+    global _query_insert_yt_channel_info
+    global _query_insert_yt_social_shares
+
+    global _yt_csv_file_path
+    global _gp_csv_file_path
+    global _yt_videos_csv_file_path
+    global _yt_channels_csv_file_path
+    global _yt_social_csv_file_path
+
+    global _gp_csv_file
+    global _yt_csv_file
+    global _yt_videos_csv_file
+    global _yt_channels_csv_file
+    global _yt_social_csv_file
 
     # ----- SOCIAL WEBS -------
 
@@ -81,8 +260,6 @@ def main(argv):
     # --- CHANNELS ----
 
     yt_channel_service = YoutubeChannel()
-    yt_channel_service.get_channel_info("UCam8T03EOFBsNdR0thrFHdQ")
-
 
     yt_comments_service = GoogleCommentsService(argv)
     gp_service = GooglePlusService(argv)
@@ -94,154 +271,243 @@ def main(argv):
     #TODO: Cargar todos los parametros desde un fichero de configuracion: rutas, constantes, etc.
     #TODO: Cambiar el load por otra forma en la que se puedan cargar en remoto de forma rapida
 
-    query_bulk_load_yt_comments = "SET NAMES utf8mb4; LOAD DATA INFILE 'G:/TFC/yt_comments.csv' " \
-                                  "INTO TABLE YT_COMMENTS CHARACTER SET utf8mb4 FIELDS TERMINATED BY '\\t' " \
-                                  "OPTIONALLY ENCLOSED BY '\"' LINES TERMINATED BY '\\n' "
+    ts = time.time()
+    today = datetime.datetime.fromtimestamp(ts).strftime('%Y-%m-%d')
 
-    query_bulk_load_gp_comments = "SET NAMES utf8mb4; LOAD DATA INFILE 'G:/TFC/gp_comments.csv' " \
-                                  "INTO TABLE GP_COMMENTS CHARACTER SET utf8mb4 FIELDS TERMINATED BY '\\t' " \
-                                  "OPTIONALLY ENCLOSED BY '\"' LINES TERMINATED BY '\\n' "
+    _yt_csv_file_path %= today
+    _gp_csv_file_path %= today
+    _yt_videos_csv_file_path %= today
+    _yt_channels_csv_file_path %= today
+    _yt_social_csv_file_path %= today
 
-    query_insert_yt_video_info = "LOAD DATA INFILE 'G:/TFC/yt_videos.csv' INTO TABLE YT_VIDEOS " \
-                                 "FIELDS TERMINATED BY '\\t' OPTIONALLY ENCLOSED BY '\"' LINES TERMINATED BY '\\n' "
+    _query_bulk_load_yt_comments %= _yt_csv_file_path
+    _query_bulk_load_gp_comments %= _gp_csv_file_path
+    _query_insert_yt_video_info %= _yt_videos_csv_file_path
+    _query_insert_yt_channel_info %= _yt_channels_csv_file_path
+    _query_insert_yt_social_shares %= _yt_social_csv_file_path
 
-    #query_insert_yt_video_info = "INSERT INTO YT_VIDEO_SHARES (VIDEO_ID)"
-
-    gp_csv_file = codecs.open("g:\TFC\gp_comments.csv", 'wb', 'utf-8')
-    yt_csv_file = codecs.open("g:\TFC\yt_comments.csv", 'wb', 'utf-8')
-
-    #GooglePlusService(argv)
 
     client = service.YouTubeService()
     client.ClientLogin(USERNAME, PASSWORD)
 
     global _file_log
     global _file_log_name
-    _file_log = codecs.open(_file_log_name, 'wb', 'utf-8')
+    _file_log = codecs.open(_file_log_name, mode = 'wb', encoding = 'utf-8')
 
-    #############################
-    ### Youtube Videos Search ###
-    #############################
-    yt_videos_csv_file = codecs.open("g:\TFC\yt_videos.csv", 'wb', 'utf-8')
-    yt_channels_csv_file = codecs.open("g:\TFC\yt_channel.csv", 'wb', 'utf-8')
-    yt_social_csv_file = codecs.open("g:\TFC\yt_social.csv", 'wb', 'utf-8')
+    '''
+    s = '(\xef\xbd\xa1\xef\xbd\xa5\xcf\x89\xef\xbd\xa5\xef\xbd\xa1)\xef\xbe\x89'
+    s1 = s.decode('utf-8')
+    #aux = aux.replace('\xef\xbb\xbf', '')
 
-    subject_input = raw_input('What are you looking for? ')
-    order_input = raw_input('What order do you wish (date, rating, relevance, title, videoCount, viewCount)? ')
-    max_results_input = raw_input('Max results? ')
-    b_avoid_ddbb = raw_input('Avoid Database (Y/N)? ')
+    _file_log.write(s1)
+    exit(0)
+    '''
 
-    argparser.add_argument("--q", help="Search term", default=subject_input)
-    argparser.add_argument("--max-results", help="Max results", default=max_results_input)
-    argparser.add_argument("--order", help="Order of results", default=order_input)
+    ''' Uncomment to test files without delete content ('wb' mode) previusly'''
+    '''
+    openDataFiles('r')
+    '''
 
-    args = argparser.parse_args()
 
-    try:
 
-        arr_videos = yt_search_service.youtube_search(args)
+    #GooglePlusService(argv)
 
-        yt_search_service.printYoutubeInfo2CSVFile(arr_videos, yt_videos_csv_file)
 
-    except HttpError, e:
-        print "An HTTP error %d occurred:\n%s" % (e.resp.status, e.content)
+    '''
+    printLog("Loading youtube data file comments %s into database...\n" % _yt_csv_file_path)
+    yt_comments_service.executeLoadInBD(_query_bulk_load_yt_comments)
+    exit(0)
+    '''
 
-    printLog("Looking for:")
-    printLog("\tSubject: %s" % subject_input)
-    printLog("\tMax-results: %s" % max_results_input)
-    printLog("\tOrder by: %s" % order_input)
+    '''
+    printLog("Loading data videos file into database... ")
+    yt_comments_service.executeLoadInBD(query_insert_yt_video_info)
+    exit(0)
+    '''
 
+
+    '''
+    printLog("Loading google+ data comments into database...\n")
+    yt_comments_service.executeLoadInBD(query_bulk_load_gp_comments)
+
+    printLog("Loading channel info into database...\n")
+    yt_comments_service.executeLoadInBD(query_insert_yt_channel_info)
+    '''
+
+    '''
+    printLog("Loading social web-sites shares data into database...\n")
+    yt_comments_service.executeLoadInBD(_query_insert_yt_social_shares)
+
+    exit(0)
+    '''
+    arr_videos = []
+    b_avoid_ddbb = True
+
+    if(_mode == 'search'):
+
+        openDataFiles('wb')
+
+        subject_input = raw_input('What are you looking for [Default: T_km8oZ2g98]? ')
+        if subject_input == "":
+            subject_input = "T_km8oZ2g98"
+
+        order_input = raw_input(
+            'What order do you wish (date, rating, relevance, title, videoCount, viewCount)? (Default: relevance)')
+        max_results_input = raw_input('Max results? (Default: 1)')
+        b_avoid_ddbb = raw_input('Avoid Database (Y/N)? (Default: Y) ')
+
+        order_input = "relevance" if (order_input == "") else order_input
+        max_results_input = "1" if (max_results_input == "") else max_results_input
+        b_avoid_ddbb = True if ((b_avoid_ddbb == "") | (b_avoid_ddbb == "Y")) else False
+
+        argparser.add_argument("--q", help="Search term", default=subject_input)
+        argparser.add_argument("--max-results", help="Max results", default=max_results_input)
+        argparser.add_argument("--order", help="Order of results", default=order_input)
+
+        args = argparser.parse_args()
+
+        try:
+
+            arr_videos = yt_search_service.youtube_search(args)
+
+            yt_search_service.printYoutubeInfo2CSVFile(arr_videos, _yt_videos_csv_file)
+
+        except HttpError, e:
+            print "An HTTP error %d occurred:\n%s" % (e.resp.status, e.content)
+
+        printLog("Looking for:")
+        printLog("\tSubject: %s" % subject_input)
+        printLog("\tMax-results: %s" % max_results_input)
+        printLog("\tOrder by: %s" % order_input)
+        printLog("\n")
+
+    elif _mode == 'auto':
+
+        ''' In automatic mode, we have to APPEND multiple videos data to files'''
+        openDataFiles('a')
+        arr_videos = loadVideos2Follow()
+
+    yt_count = 0
+    gp_count = 0
     for video in arr_videos:
         video_id = video['id']
-        printLog("Processing video with id: %s" % video_id)
+        printLog("Processing video with id: %s\n" % video_id)
 
         channel_id = video['snippet']['channelId']
-        printLog("Printing channel info into file... ")
-        yt_channel_service.printChannelInfo2CSVFile(channel_id, yt_channel_service.get_channel_info(channel_id),
-                                                    yt_channels_csv_file)
 
-        channel_id = video['snippet']['channelId']
-        print "Retrieving video info %s and channel detail %s" % (video['id'], video['snippet']['channelId'])
-        yt_channel_service.get_channel_info(channel_id)
-        print "Retrieving \"Shares\" from social websites..."
+        if channel_id is not None and channel_id != "":
+            printLog("Printing channel ['%s'] info into file... " % channel_id)
+            yt_channel_service.printChannelInfo2CSVFile(channel_id, yt_channel_service.get_channel_info(channel_id),
+                                                    _yt_channels_csv_file)
+
+            channel_id = video['snippet']['channelId']
+            printLog("\nRetrieving video info %s and channel detail %s" % (video['id'], video['snippet']['channelId']))
+            yt_channel_service.get_channel_info(channel_id)
+
+        printLog("\nRetrieving \"Shares\" from social websites...")
         n_fb_shares = social_web_service.getFacebookLinkSharedCount(video_url % video['id'])
         n_tw_shares = social_web_service.getTwitterLinkSharedCount(video_url % video['id'])
         n_lk_shares = social_web_service.getLinkedlnLinkSharedCount(video_url % video['id'])
 
-        social_web_service.printSocialSharesInfo2CSVFile(video['id'], yt_social_csv_file)
+        try:
 
-        print "\n"
+            social_web_service.printSocialSharesInfo2CSVFile(video['id'], _yt_social_csv_file)
 
-        exit(0)
+        except:
+            printLogTime("ERROR: Error writing Social Shares to file.\nException: %s" % sys.exc_info()[0])
 
-        if not b_avoid_ddbb:
-            printLog("Deleting database comments and info for video...")
-            deleteVideoInfo(yt_comments_service, video_id)
+        printLog("\n")
 
-        count = 0
+        printLog("\nRetrieving \"Comments\" from Youtube...\n")
         #for comment in comments_generator2(client, VIDEO_ID, 0):
         for comment in yt_comments_service.comments_generator(client, video_id):
-            count += 1
+            print "-----> DEBUG: Tenemos un nuevo comentario..."
+            yt_count += 1
             author_name = comment.author[0].name.text
             text = comment.content.text
             last_pos = comment.id.text.rfind('/')
-            printLog(comment.content.text)
+            #printLog(comment.content.text)
             comment_id = comment.id.text[last_pos + 1::]
-            printLog("\t%s" % comment.id.text)
-            printLog("\t%s" % comment_id)
+            printLogTime("YT_Comment:%s" % comment.id.text, False)
+            printLogTime("Author:%s" % comment.author[0].name.text, False)
+            #print("YTComment.content.text: %s" % comment.content.text)
+            printLogTime(comment.content.text, False)
+            #printLog("\t%s" % comment_id)
+
             #print "\treplyCount: %s" % comment.replyCount
             #print "\tcomment: %s" % comment
-            comment_string = str(comment)
+            comment_string = comment.ToString()
             replycount_first = comment_string.find("replyCount")
             replycount_last = comment_string.find("</ns1:replyCount>")
-            printLog("\tyt:replyCount: ----> %s" % comment_string[replycount_first + 11:replycount_last])
+            printLog("*** G+ Comments? ----> %s" % comment_string[replycount_first + 11:replycount_last])
             reply_count = int(comment_string[replycount_first + 11:replycount_last])
 
             if reply_count > 0:
                 # Obtenemos los Likes de la actividad global
                 gp_comment_activity_likes = gp_service.getActivityById(comment_id)
-                #print >> yt_csv_file, \
-                #    printCSVYoutubeComment(comment, gd_comment_activity_likes)
-                yt_csv_file.write(yt_comments_service.printCSVYoutubeComment(comment, video_id,
+                printLog("\n\tRetrieving \"G+ Comments\" from G+ Social Network...")
+
+                try:
+
+                    _yt_csv_file.write(yt_comments_service.printCSVYoutubeComment(comment, video_id,
                                                                              gp_comment_activity_likes))
+                except:
+                    printLogTime("ERROR: Error writing Youtube comment to file.\nException: %s" % sys.exc_info()[0], True)
+                    pass
 
                 # Obtenemos todos los comentarios y sus campos y los imprimimos a fichero CSV de Google Plus
-                for comment in gp_service.googlePlusActitivyInfoGenerator(comment_id):
-                    #gp_service.printGooglePlusComment(comment)
-                    #print >> gp_csv_file, gp_service.printCSVGooglePlusComment(comment, comment_id,
-                    # reply_count).encode('utf-8')
-                    gp_csv_file.write(yt_comments_service.printCSVGooglePlusComment(gp_service, comment, comment_id,
+                for gp_comment in gp_service.googlePlusActitivyInfoGenerator(comment_id):
+
+                    gp_count+=1
+                    # TODO: Los comentarios aqui impresos no todos son G+, los que no contienen codigo HTML pueden ser de Youtube--> comprobar
+                    printLogTime("\t\tG+_Author:%s" % gp_comment['actor']['displayName'], False)
+                    print("Comment: %s" % gp_comment['object']['content'])
+                    printLogTime("\t\t\t%s" % gp_comment['object']['content'], False)
+
+                    try:
+                        _gp_csv_file.write(yt_comments_service.printCSVGooglePlusComment(gp_service, gp_comment, comment_id,
                                                                                     reply_count, video_id))
+                    except:
+                        printLogTime("ERROR: Error writing G+ comment to file.\nException: %s" % sys.exc_info()[0], True)
+                        pass
 
-                    #gp_csv_writer.writerow(gp_service.printCSVGooglePlusComment(comment, replyCount).encode('utf-8'))
-                    #print gp_service.printCSVGooglePlusComment(comment, replyCount).encode('utf-8')
-
-                    #### 2014-02-16: Version antigua que imprime la info de los comentarios de G+ de un comentario de YT
-                    ####gp_service.getGooglePlusActitivyInfo(comment_id)
+                    # End For gp_comments Loop
             else:
-                #print >> yt_csv_file, printCSVYoutubeComment(comment, 0)
-                yt_csv_file.write(yt_comments_service.printCSVYoutubeComment(comment, video_id, 0))
 
-    _COMMENNTS_COUNT = count
+                try:
+                    _yt_csv_file.write(yt_comments_service.printCSVYoutubeComment(comment, video_id, 0))
+                except:
+                    printLogTime("ERROR: Error writing Youtube comment to file.\nException: %s" % sys.exc_info()[0], True)
+                    pass
 
-    yt_csv_file.close()
-    gp_csv_file.close()
-    yt_videos_csv_file.close()
+            printLogTime("", False)
+            # End For comments Loop
 
+    _COMMENNTS_COUNT = yt_count + gp_count
+    print "\n*****************************************"
+    print "Total comments: %s" % _COMMENNTS_COUNT
+    print "\tYT comments: %s" % yt_count
+    print "\tGP comments: %s" % gp_count
+    print "*****************************************\n"
+
+    # Close data files after writting info
+    closeDataFiles()
+
+    printLog("\n")
     if not b_avoid_ddbb:
         b_cargar = raw_input("*** Do you want to load comments data files into database? (Y/N): ")
 
         if b_cargar == "Y":
-            printLog("Loading data videos file into database... ")
-            yt_comments_service.executeLoadInBD(query_insert_yt_video_info)
-            printLog("Loading youtube data comments into database...\n")
-            yt_comments_service.executeLoadInBD(query_bulk_load_yt_comments)
-            printLog("Loading google+ data comments into database...\n")
-            yt_comments_service.executeLoadInBD(query_bulk_load_gp_comments)
+            printLog("Loading data files into database...")
+            openDataFiles('r')
 
-            printLog("Data files have been loaded correctly!\n")
+            loadDataFilesInBD(yt_comments_service)
+
+            closeDataFiles()
+
+            printLog("\tData files have been loaded correctly!\n")
         else:
-            printLog("*** ERROR ***: \tData files have not been loaded!")
+            printLog("*** WARM ***: \tData files have not been loaded!")
 
     _file_log.close()
 

@@ -19,8 +19,7 @@ class YoutubeSearch():
     _youtube = None
 
     def __init__(self):
-        #self.DEVELOPER_KEY = "AIzaSyCGdK6aLpY5o-f_rvk1NOQJUcmD-Cu8C5o"
-        self.DEVELOPER_KEY = "AIzaSyAj3BdWypes8R3hkQ3x8TeQLMkBNygw6tU"
+        self.DEVELOPER_KEY = "AIzaSyBQ2PoALuuf4HivoLnLhthRdgBo-NvRMRE"
         self.YOUTUBE_API_SERVICE_NAME = "youtube"
         self.YOUTUBE_API_VERSION = "v3"
 
@@ -65,6 +64,8 @@ class YoutubeSearch():
         return timeS
 
     def formatYoutubeDate(self, yt_datetime):
+        """ Formato Youtube: 2014-05-28T07:48:00.000Z """
+
         #print "Formateando fecha: %s " % yt_datetime
         _tmp = time.strptime(yt_datetime[:-5], '%Y-%m-%dT%H:%M:%S')
         formated_time = datetime.datetime(*_tmp[:6])
