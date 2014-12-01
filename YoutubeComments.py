@@ -16,7 +16,7 @@ import MySQLdb
 class GoogleCommentsService(object):
 
     MAX_RESULTS = 40
-    _COMMENNTS_COUNT = 0
+    _COMMENTS_COUNT = 0
     _TEXT_CHARSET = 'utf-8'
 
     def __init__(self, argv):
@@ -24,7 +24,7 @@ class GoogleCommentsService(object):
 
     def comments_generator2(self, client, video_id, next_page):
         print "----------> comments_generator2()"
-        global _COMMENNTS_COUNT
+        global _COMMENTS_COUNT
 
         start_index = (next_page * self.MAX_RESULTS) + 1
         print "Start-Index:%s" % start_index
@@ -34,7 +34,7 @@ class GoogleCommentsService(object):
         comment_feed = client.GetYouTubeVideoCommentFeed(uri=url)
         while comment_feed is not None:
             for comment in comment_feed.entry:
-                _COMMENNTS_COUNT += 1
+                _COMMENTS_COUNT += 1
                 yield comment
 
             if len(comment_feed.entry) == 0:
@@ -65,14 +65,9 @@ class GoogleCommentsService(object):
         yt_content = yt_content.replace('"', '')
         yt_content = '"%s"' % yt_content
 
-        print "printCSVYoutubeComment: Hay chars UTF-8? %s" % isinstance(yt_content, str)
+        ###print "printCSVYoutubeComment: Hay chars UTF-8? %s" % isinstance(yt_content, str)
 
-        # Prueba Utf8 unicodeerror
-        try:
-            yt_content = yt_content.decode("utf-8") if isinstance(yt_content, str) else unicode(yt_content)
-        except UnicodeDecodeError:
-            print "-------> printCSVYoutubeComment: Error en conversion unicode. Se intenta decode utf-8"
-            yt_content = yt_content.decode("utf-8")
+        yt_content = yt_content.decode("utf-8") if isinstance(yt_content, str) else unicode(yt_content)
 
         last_pos = yt_comment.id.text.rfind('/')
 
@@ -86,7 +81,8 @@ class GoogleCommentsService(object):
 
         yt_reply_count = int(comment_string[replycount_first + 11:replycount_last])
 
-        #Prueba: Verificamos uno a uno el tipo de codificacion de cada string y lo pasamos en caso de ser necesario
+        ### KEY POINT: Check 1 per 1 field if string codification is Unicode or String. Convert them if necessary
+        ### Python is not able to concatenate string in different codifications
         yt_comment_id = yt_comment_id.decode("utf-8") if isinstance(yt_comment_id, str) else unicode(yt_comment_id)
         yt_author_name = yt_author_name.decode("utf-8") if isinstance(yt_author_name, str) else unicode(yt_author_name)
         yt_content = yt_content.decode("utf-8") if isinstance(yt_content, str) else unicode(yt_content)
@@ -95,8 +91,7 @@ class GoogleCommentsService(object):
         gp_likes_activity = gp_likes_activity.decode("utf-8") if isinstance(gp_likes_activity, str) else unicode(gp_likes_activity)
         video_id = video_id.decode("utf-8") if isinstance(video_id, str) else unicode(video_id)
 
-        #print (csv_format_string % (yt_comment_id, yt_author_name, yt_content,
-        #                            yt_published, yt_reply_count, gp_likes_activity))
+        ''' # Uncomento to Debug
         print "yt_comment_id: %s" % yt_comment_id
         print "yt_author_name: %s" % yt_author_name
         print "yt_content: %s" % yt_content
@@ -104,37 +99,8 @@ class GoogleCommentsService(object):
         print "yt_reply_count: %s" % yt_reply_count
         print "gp_likes_activity: %s" % gp_likes_activity
         print "video_id: %s" % video_id
-
         '''
-        try:
-            print "%s\t%s\t%s\t%s\t%s\t%s\n" % (yt_comment_id, yt_author_name,
-                                       self.formatYoutubeDate(yt_published), yt_reply_count, gp_likes_activity, video_id)
-        except UnicodeDecodeError:
-            print "-----> Error devolviendo el string concatenado"
-            print "-----> comentario: %s" % yt_content
-            try:
-                msg = "%s\t%s\t%s\t%s\t%s\t%s\t%s\n" % (yt_comment_id, yt_author_name, yt_content.decode('utf-8'),
-                                       self.formatYoutubeDate(yt_published), yt_reply_count, gp_likes_activity, video_id)
-            except UnicodeDecodeError:
-                print "-----> Error intentando decodificar a utf-8"
-                try:
-                    msg = "%s\t%s\t%s\t%s\t%s\t%s\t%s\n" % (yt_comment_id, yt_author_name, yt_content[:-3],
-                                           self.formatYoutubeDate(yt_published), yt_reply_count, gp_likes_activity, video_id)
-                except UnicodeDecodeError:
-                    print "-----> Error intentando substring -3"
-                    print "-----> comentario: %s" % yt_content[:-3]
-                    try:
-                        msg = "%s\t%s\t%s\n" % (yt_comment_id, yt_author_name, yt_content)
-                    except UnicodeDecodeError:
-                        print "-----> Error intentando eliminar ultimos 3 caracteres"
-                        yt_content = yt_content.encode('utf-8')
-                        try:
-                            msg = "%s\t%s\t%s\n" % (yt_comment_id, yt_author_name, yt_content)
-                            print "-----> comentario: %s" % msg
-                        except UnicodeDecodeError:
-                            print "-----> Error intentando codificar a utf8"
 
-        '''
         return csv_format_string % (yt_comment_id, yt_author_name, yt_content,
                                     self.formatYoutubeDate(yt_published), yt_reply_count, gp_likes_activity, video_id)
 
@@ -143,11 +109,12 @@ class GoogleCommentsService(object):
         arr_gp_comment_fields = gp_service.getArrayGooglePlusCommentFields(gp_comment)
 
         htmlParser = HTMLParser.HTMLParser()
-        #print arr_gp_comment_fields[4]
+
         formatted_published_time = self.formatYoutubeDate(arr_gp_comment_fields[3])
         parsed_comment_body = htmlParser.unescape(arr_gp_comment_fields[2])
 
-        print "DEBUG: content: '%s'" % arr_gp_comment_fields[2]
+        #print "DEBUG: content: '%s'" % arr_gp_comment_fields[2]
+
         return csv_format_string % (arr_gp_comment_fields[0], arr_gp_comment_fields[1],
                                     parsed_comment_body, formatted_published_time, arr_gp_comment_fields[4],
                                     yt_comment_id, num_replies, video_id)
@@ -158,10 +125,10 @@ class GoogleCommentsService(object):
             yt_conn = mysql.connector.connect(user='root', password='cc1251',
                                               host='127.0.0.1',
                                               database='youtube')
-            print "\nConexion con mysql establecida"
+            #"\nConexion con mysql establecida"
             yt_cursor = yt_conn.cursor()
 
-            print "Ejecutando query: %s" % query
+            #print "Ejecutando query: %s" % query
             if ";" in str(query):
                 yt_cursor.execute(query, multi=True)
             else:
@@ -194,40 +161,42 @@ class GoogleCommentsService(object):
                 print(err)
         else:
             if yt_conn is not None:
-                #print "Cerrando conexion con mysql"
+                #print "Closing connection with mysql server"
                 yt_conn.close()
 
     def executeLoadInBD(self, query):
         try:
 
             yt_conn = MySQLdb.connect('127.0.0.1', 'root', 'cc1251', 'youtube')
-            print "\nConexion con mysql establecida"
+            #print "\nConexion con mysql establecida"
             yt_cursor = yt_conn.cursor()
 
             yt_cursor.execute(query)
 
             yt_conn.commit()
 
+            '''# Uncomment to Debug
             total = long(str(vars(yt_cursor)['_info']).split(':')[1].strip(' ').split(' ')[0])
             skipped = long(str(vars(yt_cursor)['_info']).split(':')[3].strip(' ').split(' ')[0])
 
             print "********************************************************"
-            '''print vars(yt_cursor)'''
+            # print vars(yt_cursor)
             print "Query: %s" % vars(yt_cursor)['_executed']
             print "Result: %s" % vars(yt_cursor)['_info']
             print "Loaded: %s" % str(total - skipped)
             print "********************************************************"
-
-            #comment_no = yt_cursor.lastrowid
-            #print "Ult. comentario insertado: %d" % comment_no
-            #
-            #yt_conn.commit()
-
-            #for (result) in yt_cursor:
-            #    print "Resultado: %s" % result
+            '''
 
             yt_cursor.close()
             yt_conn.close()
+
+        except (KeyboardInterrupt, SystemExit):
+            yt_conn.rollback()
+            yt_cursor.close()
+            yt_conn.close()
+            print "\nRolling back database changes..."
+            print "\n\nShutting down youtube-gatherer..."
+            raise
 
         except mysql.connector.Error as err:
             if err.errno == errorcode.ER_ACCESS_DENIED_ERROR:
@@ -238,13 +207,12 @@ class GoogleCommentsService(object):
                 print("*** ERROR ***: Database is not running")
             else:
                 print(err)
-        else:
+
             if yt_conn is not None:
-                print "Cerrando conexion con mysql"
-                #yt_conn.close()
+                yt_conn.close()
 
     def comments_generator(self, client, video_id):
-        print "----------> comments_generator()"
+
         retries_counter = 3
         #start_index = (next_page * MAX_RESULTS) + 1
         #print "Start-Index:%s" % start_index
@@ -254,7 +222,6 @@ class GoogleCommentsService(object):
 
         comments_count = 0
         url = "https://gdata.youtube.com/feeds/api/videos/%s/comments?orderby=published" % video_id
-        #comment_feed = client.GetYouTubeVideoCommentFeed(video_id=video_id)
 
         comment_feed = client.GetYouTubeVideoCommentFeed(uri=url)
         while comment_feed is not None and (retries_counter > 0):
@@ -266,8 +233,8 @@ class GoogleCommentsService(object):
                 if next_link is None:
                     comment_feed = None
                 else:
-                    print "Comments count=%s" % comments_count
-                    print "Next link: %s" % next_link.href
+                    #print "Comments count=%s" % comments_count
+                    #print "Next link: %s" % next_link.href
                     comment_feed = client.GetYouTubeVideoCommentFeed(next_link.href)
                     #next_page += 1
                     #start_index = (next_page * MAX_RESULTS) + 1
@@ -282,6 +249,6 @@ class GoogleCommentsService(object):
                     if retries_counter > 0:
                         if request_error[0]['status'] == '500':
                             retries_counter -= 1
-                            print "Reintentando desde indice de comentarios [%s]..." % comments_count
+                            print "Retrying extraction from index of comments [%s]..." % comments_count
                             url += "&start-index=%s" % comments_count
                             print "URL: %s" % url

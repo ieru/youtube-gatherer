@@ -103,11 +103,14 @@ class YoutubeSearch():
             yt_text_title = yt_video_info["snippet"]["title"]
             yt_text_description = yt_video_info["snippet"]["description"]
 
+            yt_text_title = yt_text_title.decode("utf-8") if isinstance(yt_text_title, str) else unicode(yt_text_title)
+            yt_text_description = yt_text_description.decode("utf-8") if isinstance(yt_text_description, str) else unicode(yt_text_description)
+
             # Escapamos las dobles comillas ya que se utilizaran para separar englobar campos en el fichero csv
-            yt_text_title = str(yt_text_title).replace('"', '\\"')
+            yt_text_title = yt_text_title.replace('"', '\\"')
             yt_text_title = '"%s"' % yt_text_title
 
-            yt_text_description = str(yt_text_description).replace('"', '\\"')
+            yt_text_description = yt_text_description.replace('"', '\\"')
             yt_text_description = '"%s"' % yt_text_description
 
             yt_text_channelId = yt_video_info["snippet"]["channelId"]

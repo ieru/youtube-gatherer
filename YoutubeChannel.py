@@ -2,7 +2,7 @@
 
 __author__ = 'antoniofsanjuan'
 
-import httplib2
+#import httplib2
 import time
 import datetime
 import mysql.connector
@@ -13,9 +13,9 @@ from apiclient.discovery import build
 
 # Explicitly tell the underlying HTTP transport library not to retry, since
 # we are handling retry logic ourselves.
-httplib2.RETRIES = 1
+#httplib2.RETRIES = 1
 
-#CLIENT_SECRETS_FILE = "G:\\TFC\\API\\v3\\client_secrets.json"
+#CLIENT_SECRETS_FILE = "client_secrets.json"
 
 
 class YoutubeChannel():
@@ -39,12 +39,15 @@ class YoutubeChannel():
         str_subscriberCount = record["statistics"]["subscriberCount"]
         str_hiddenSubscriberCount = 0 if str(record["statistics"]["hiddenSubscriberCount"]).upper() == "false".upper() else 1
         str_videoCount = record["statistics"]["videoCount"]
+        
+        ''' # Uncomment to Debug
         print "Channel Title: %s" % record["snippet"]["title"]
         print "Channel viewCount: %s" % record["statistics"]["viewCount"]
         print "Channel commentCount: %s" % record["statistics"]["commentCount"]
         print "Channel subscriberCount: %s" % record["statistics"]["subscriberCount"]
         print "Channel hiddenSubscriberCount: %s" % record["statistics"]["hiddenSubscriberCount"]
         print "Channel videoCount: %s" % record["statistics"]["videoCount"]
+        '''
 
         return csv_format_string % (channel_id, str_title, str_viewCount, str_commentCount,
                                     str_subscriberCount, str_hiddenSubscriberCount, str_videoCount)
@@ -76,8 +79,8 @@ class YoutubeChannel():
 
         # Searching by channel_id only returns one record
         #for search_result in channels_response.get("items", []):
-        if channels_response is not None:
-            print self.printCSVYoutubeChannelInfo(channel_id, channels_response.get("items", [])[0])
+        #if channels_response is not None:
+        #    print self.printCSVYoutubeChannelInfo(channel_id, channels_response.get("items", [])[0])
 
         return channels_response.get("items", [])[0]
 
@@ -87,11 +90,11 @@ class YoutubeChannel():
             yt_conn = mysql.connector.connect(user='root', password='cc1251',
                                               host='127.0.0.1',
                                               database='youtube')
-            print "\nConexion con mysql establecida"
+            #print "\nConexion con mysql establecida"
             yt_cursor = yt_conn.cursor()
             #data_comment = (00001, 'Antonio', 'Este es el cuerpo de un comentario', datetime.now(), 1, 1, 1)
             #
-            print "Ejecutando query: %s" % query
+            #print "Ejecutando query: %s" % query
             if ";" in str(query):
                 yt_cursor.execute(query, multi=True)
             else:

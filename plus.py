@@ -19,11 +19,9 @@
 
 Command-line application that retrieves the list of the user's posts."""
 
-__author__ = 'antoniofsanjuan'
+__author__ = 'antoniofsanjuan@gmail.com'
+__file__ = 'client_secrets.json'
 
-import sys
-
-from oauth2client import client
 from apiclient import sample_tools
 
 
@@ -32,13 +30,12 @@ class GooglePlusService(object):
     def getGooglePlusActitivyInfo(self, activity_id):
 
         if self._gp_service is None:
-              self._gp_service, flags = sample_tools.init(
+            self._gp_service, flags = sample_tools.init(
                 argv, 'plus', 'v1', __doc__, __file__,
                 scope='https://www.googleapis.com/auth/plus.me')
 
         comments_resource = self._gp_service.comments()
-        comments_document = comments_resource.list( \
-          maxResults=500,activityId=activity_id).execute()
+        comments_document = comments_resource.list(maxResults=500, activityId=activity_id).execute()
 
         if 'items' in comments_document:
           print '\t\tNumber of G+ comments: %d' % len( comments_document['items'])
@@ -62,55 +59,48 @@ class GooglePlusService(object):
     def getArrayGooglePlusCommentFields(self, comment):
         if comment is not None:
             return [comment['id'], comment['actor']['displayName'], comment['object']['content'], comment['published'],
-                     comment['plusoners']['totalItems']]
+                    comment['plusoners']['totalItems']]
 
     def googlePlusActitivyInfoGenerator(self, activity_id):
 
         if self._gp_service is None:
-              self._gp_service, flags = sample_tools.init(
+            self._gp_service, flags = sample_tools.init(
                 argv, 'plus', 'v1', __doc__, __file__,
                 scope='https://www.googleapis.com/auth/plus.me')
 
         comments_resource = self._gp_service.comments()
-        comments_document = comments_resource.list( \
-          maxResults=500,activityId=activity_id).execute()
+        comments_document = comments_resource.list(maxResults=500, activityId=activity_id).execute()
 
         if 'items' in comments_document:
-          for comment in comments_document['items']:
-              yield comment
-
+            for comment in comments_document['items']:
+                yield comment
 
     def getActivityById(self, comment_id):
 
         if self._gp_service is None:
-              self._gp_service, flags = sample_tools.init(
+            self._gp_service, flags = sample_tools.init(
                 argv, 'plus', 'v1', __doc__, __file__,
                 scope='https://www.googleapis.com/auth/plus.me')
 
         activity_resource = self._gp_service.activities()
-        activity = activity_resource.get( \
-            activityId=comment_id).execute()
+        activity = activity_resource.get(activityId=comment_id).execute()
 
-        print "\tLikes: %s" % activity['object']['plusoners']['totalItems']
+        #print "\tLikes: %s" % activity['object']['plusoners']['totalItems']
 
         #print '\t%s' % comment['id'], comment['object']['content']
         #print '\tG+ Likes: %d' % comments_document['plusoners']['totalItems']
 
         return activity['object']['plusoners']['totalItems']
 
-
-
     def search(self, query):
         activities_resource = self._gp_service.activities()
-        activities_document = activities_resource.search( \
-        maxResults=5,orderBy='best',query=query).execute()
+        activities_document = activities_resource.search(maxResults=5,orderBy='best', query=query).execute()
 
         if 'items' in activities_document:
-          print 'Number of Activities: %d' % len( activities_document['items'])
-          for activity in activities_document['items']:
-            #print activity['id'], activity['object']['content']
-            self.getGooglePlusActitivyInfo(self._gp_service, activity['id'])
-
+            ###print 'Number of Activities: %d' % len(activities_document['items'])
+            for activity in activities_document['items']:
+                #print activity['id'], activity['object']['content']
+                self.getGooglePlusActitivyInfo(self._gp_service, activity['id'])
 
     def __init__(self, argv):
         # Authenticate and construct service.
@@ -119,8 +109,8 @@ class GooglePlusService(object):
 
         #print "Se ha llamado a  ____init____"
         self._gp_service, flags = sample_tools.init(
-          argv, 'plus', 'v1', __doc__, __file__,
-          scope='https://www.googleapis.com/auth/plus.me')
+            argv, 'plus', 'v1', __doc__, __file__,
+            scope='https://www.googleapis.com/auth/plus.me')
 
     #  try:
     #     getCommentById('z125exihcvf1fzty504ci5nailr4h5g4bs00k')

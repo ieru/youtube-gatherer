@@ -50,15 +50,16 @@ class DAOYoutubeCollector():
 
     def getYoutubeVideosToFollow(self):
 
-        query = "SELECT ID_VIDEO, ID_CHANNEL, DS_TITLE, DS_DESCRIPTION, NUM_DURATION, DT_PUBLISH, NUM_VISITS, " \
-                "NUM_LIKES, NUM_DISLIKES FROM YT_VIDEOS"
+        query = "SELECT ID_VIDEO, ID_CHANNEL " \
+                        "FROM YT_VIDEOS_TO_FOLLOW " \
+                        "WHERE DT_STARTED <= CURDATE()"
 
         arr_videos = []
 
         try:
 
             yt_conn = MySQLdb.connect('127.0.0.1', 'root', 'cc1251', 'youtube')
-            print "\nConexion con mysql establecida"
+            #print "\nConexion con mysql establecida"
 
             yt_cursor = yt_conn.cursor()
 
@@ -66,33 +67,32 @@ class DAOYoutubeCollector():
 
             for row_video in yt_cursor:
 
-                video = {'id': '',
-                         'snippet': {'channelId': '', 'title': '', 'description': ''},
+                video = {'id': '', 'snippet': {'channelId': row_video[1], 'title': '', 'description': '', 'publishedAt': ''},
                          'contentDetails': {'duration': -1},
-                         'statistics': {'viewCount': '', 'likeCount': '', 'dislikeCount': ''}}
+                         'statistics': {'viewCount': '', 'likeCount': '', 'dislikeCount': ''}, "id": row_video[0]}
 
-                video["id"] = row_video[0]
                 video["snippet"]["channelId"] = row_video[1]
-                video["snippet"]["title"] = row_video[2]
-                video["snippet"]["description"] = row_video[3]
-                video["contentDetails"]["duration"] = self.durationInSecondsToISO8601Format(row_video[4])
-                video["snippet"]["publishedAt"] = self.formatDateToYoutubeDate(row_video[5])
-                video["statistics"]["viewCount"] = row_video[6]
-                video["statistics"]["likeCount"] = row_video[7]
-                video["statistics"]["dislikeCount"] = row_video[8]
+                #video["snippet"]["title"] = row_video[2]
+                #video["snippet"]["description"] = row_video[3]
+                #video["contentDetails"]["duration"] = self.durationInSecondsToISO8601Format(row_video[4])
+                #video["snippet"]["publishedAt"] = self.formatDateToYoutubeDate(row_video[5])
+                #video["statistics"]["viewCount"] = row_video[6]
+                #video["statistics"]["likeCount"] = row_video[7]
+                #video["statistics"]["dislikeCount"] = row_video[8]
+
                 '''
+                # Uncomment to Debug
                 print("id = %s" % row_video[0])
-                print("channelId = %s" % row_video[1])
                 print("channelId = %s" % video["snippet"]["channelId"])
-                print("title = %s" % row_video[2])
-                print("description = %s" % row_video[3])
-                print("duration = %s" % row_video[4])
-                print("duration = %s" % self.durationInSecondsToISO8601Format(row_video[4]))
-                print("publishedAt = %s" % self.formatDateToYoutubeDate(row_video[5]))
-                print("viewCount = %s" % row_video[6])
-                print("likeCount = %s" % row_video[7])
-                print("dislikeCount = %s" % row_video[8])
+                print("title = %s" % video["snippet"]["title"])
+                print("description = %s" % video["snippet"]["description"])
+                print("duration = %s" % video["contentDetails"]["duration"])
+                print("publishedAt = %s" % video["snippet"]["publishedAt"])
+                print("viewCount = %s" % video["statistics"]["viewCount"])
+                print("likeCount = %s" % video["statistics"]["likeCount"])
+                print("dislikeCount = %s" % video["statistics"]["dislikeCount"])
                 '''
+
                 arr_videos.append(video)
 
             yt_cursor.close()
