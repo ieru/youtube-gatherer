@@ -18,6 +18,12 @@
 """Simple command-line sample for the Google+ API.
 
 Command-line application that retrieves the list of the user's posts."""
+from apiclient.errors import HttpError
+import oauth2client
+from oauth2client.client import AccessTokenRefreshError
+import time
+from oauth2client.anyjson import simplejson
+
 
 __author__ = 'antoniofsanjuan@gmail.com'
 __file__ = 'client_secrets.json'
@@ -29,10 +35,30 @@ class GooglePlusService(object):
 
     def getGooglePlusActitivyInfo(self, activity_id):
 
-        if self._gp_service is None:
-            self._gp_service, flags = sample_tools.init(
-                argv, 'plus', 'v1', __doc__, __file__,
-                scope='https://www.googleapis.com/auth/plus.me')
+        num_retries = 3
+        b_error = True
+
+        while num_retries > 0 and b_error:
+
+            if 0 < num_retries < 3:
+                print "Retrying connection..."
+
+            try:
+
+                if self._gp_service is None:
+                    self._gp_service, flags = sample_tools.init(
+                        self._argv, 'plus', 'v1', __doc__, __file__,
+                        scope='https://www.googleapis.com/auth/plus.me')
+
+                b_error = False
+
+            except AccessTokenRefreshError:
+                print "Warming: Credential is expired. Retrying connection..."
+                b_error = True
+                num_retries -= 1
+                self._gp_service = None
+                time.sleep(5)
+                continue
 
         comments_resource = self._gp_service.comments()
         comments_document = comments_resource.list(maxResults=500, activityId=activity_id).execute()
@@ -51,22 +77,70 @@ class GooglePlusService(object):
           print '\t\tG+ Likes: %d' % comment['plusoners']['totalItems']
 
     def printCSVGooglePlusComment(self, comment):
+
         if comment is not None:
-            return "%s\t%s\t%s\t%s\t%s\n" % (comment['id'], comment['actor']['displayName'],
-                                                 comment['object']['content'], comment['published'],
-                                                 comment['plusoners']['totalItems'])
+
+            id_comment = comment['id']
+            author = comment['actor']['displayName']
+            content = comment['object']['content']
+            # Replace tabs with blanks couse problems with delimiters
+            content = content.replace('\t', '   ')
+            # Remove double quotes because couse problems with comment delimiters
+            content = content.replace('"', '')
+            content = '"%s"' % content
+
+            dt_published = comment['published']
+            num_replies = comment['plusoners']['totalItems']
+
+            return "%s\t%s\t%s\t%s\t%s\n" % (id_comment, author, content, dt_published, num_replies)
 
     def getArrayGooglePlusCommentFields(self, comment):
+
+        #print 'DEBUG: getArrayGooglePlusCommentFields() - INIT'
+
         if comment is not None:
-            return [comment['id'], comment['actor']['displayName'], comment['object']['content'], comment['published'],
-                    comment['plusoners']['totalItems']]
+
+            id_comment = comment['id']
+            author = comment['actor']['displayName']
+            content = comment['object']['content']
+            #print 'DEBUG: getArrayGooglePlusCommentFields() - content: %s' % content
+            # Replace tabs with blanks couse problems with delimiters
+            content = content.replace('\t', '   ')
+            # Remove double quotes because couse problems with comment delimiters
+            content = content.replace('"', '')
+            content = '"%s"' % content
+            #print 'DEBUG: getArrayGooglePlusCommentFields() - content: %s' % content
+
+            dt_published = comment['published']
+            num_replies = comment['plusoners']['totalItems']
+
+            return [id_comment, author, content, dt_published, num_replies]
 
     def googlePlusActitivyInfoGenerator(self, activity_id):
 
-        if self._gp_service is None:
-            self._gp_service, flags = sample_tools.init(
-                argv, 'plus', 'v1', __doc__, __file__,
-                scope='https://www.googleapis.com/auth/plus.me')
+        #print 'DEBUG: googlePlusActitivyInfoGenerator() - INIT'
+
+        num_retries = 3
+        b_error = True
+
+        while num_retries > 0 and b_error:
+
+            try:
+
+                if self._gp_service is None:
+                    self._gp_service, flags = sample_tools.init(
+                        self._argv, 'plus', 'v1', __doc__, __file__,
+                        scope='https://www.googleapis.com/auth/plus.me')
+
+                b_error = False
+
+            except AccessTokenRefreshError:
+                print "Warming: Credential is expired. Retrying connection..."
+                b_error = True
+                num_retries -= 1
+                self._gp_service = None
+                time.sleep(5)
+                continue
 
         comments_resource = self._gp_service.comments()
         comments_document = comments_resource.list(maxResults=500, activityId=activity_id).execute()
@@ -77,13 +151,42 @@ class GooglePlusService(object):
 
     def getActivityById(self, comment_id):
 
-        if self._gp_service is None:
-            self._gp_service, flags = sample_tools.init(
-                argv, 'plus', 'v1', __doc__, __file__,
-                scope='https://www.googleapis.com/auth/plus.me')
+        num_retries = 3
+        b_error = True
 
-        activity_resource = self._gp_service.activities()
-        activity = activity_resource.get(activityId=comment_id).execute()
+        while num_retries > 0 and b_error:
+
+            try:
+                if self._gp_service is None:
+                    self._gp_service, flags = sample_tools.init(
+                        self._argv, 'plus', 'v1', __doc__, __file__,
+                        scope='https://www.googleapis.com/auth/plus.me')
+
+                b_error = False
+
+                activity_resource = self._gp_service.activities()
+                activity = activity_resource.get(activityId=comment_id).execute()
+
+            except HttpError, err:
+                if err.resp.get('content-type', '').startswith('application/json'):
+                    data = simplejson.loads(self.content)
+                    reason = data['error']['message']
+
+                    print "Warming: Error retrieving G+ comment. Reason: %s" % reason
+
+                # If the error is a rate limit or connection error, wait and
+                # try again.
+                if err.resp.status in [403, 404, 500, 503]:
+                    time.sleep(5)
+                else:
+                    raise
+            except AccessTokenRefreshError:
+                print "Warming: Credential is expired. Retrying connection..."
+                b_error = True
+                num_retries -= 1
+                self._gp_service = None
+                time.sleep(5)
+                continue
 
         #print "\tLikes: %s" % activity['object']['plusoners']['totalItems']
 
@@ -106,12 +209,35 @@ class GooglePlusService(object):
         # Authenticate and construct service.
         self._gp_service = None
         self._flags = None
+        self._argv = argv
 
         #print "Se ha llamado a  ____init____"
-        self._gp_service, flags = sample_tools.init(
-            argv, 'plus', 'v1', __doc__, __file__,
-            scope='https://www.googleapis.com/auth/plus.me')
+        num_retries = 3
+        b_error = True
 
+        while num_retries > 0 and b_error:
+
+            if 0 < num_retries < 3:
+                print "Retrying connection..."
+
+            try:
+                self._gp_service, flags = sample_tools.init(
+                    argv, 'plus', 'v1', __doc__, __file__,
+                    scope='https://www.googleapis.com/auth/plus.me')
+
+                b_error = False
+
+            except AccessTokenRefreshError:
+                print "Warming: Credential is expired. Retrying connection..."
+                b_error = True
+                num_retries -= 1
+                self._gp_service = None
+                time.sleep(5)
+                continue
+
+
+    #    print ('The credentials have been revoked or expired, please re-run'
+    #      'the application to re-authorize.')
     #  try:
     #     getCommentById('z125exihcvf1fzty504ci5nailr4h5g4bs00k')
          #search(_gp_service, 'samsung S3 opinion')

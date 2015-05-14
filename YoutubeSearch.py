@@ -95,7 +95,7 @@ class YoutubeSearch():
 
     def printYoutubeInfo2CSVFile(self, arr_yt_videos_info, csv_file):
 
-        csv_format_string = "%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\n"
+        csv_format_string = "%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\n"
 
         for yt_video_info in arr_yt_videos_info:
             #print "Video Id: %s" % yt_video_info["id"]
@@ -115,6 +115,9 @@ class YoutubeSearch():
 
             yt_text_channelId = yt_video_info["snippet"]["channelId"]
 
+            ts = time.time()
+            str_stored_timestamp = datetime.datetime.fromtimestamp(ts).strftime('%Y-%m-%d %H:%M:%S')
+
             csv_line = csv_format_string % (yt_video_info["id"],
                                             yt_text_channelId,
                                             yt_text_title,
@@ -123,7 +126,8 @@ class YoutubeSearch():
                                             self.formatYoutubeDate(yt_video_info["snippet"]["publishedAt"]),
                                             yt_video_info["statistics"]["viewCount"],
                                             yt_video_info["statistics"]["likeCount"],
-                                            yt_video_info["statistics"]["dislikeCount"])
+                                            yt_video_info["statistics"]["dislikeCount"],
+                                            str_stored_timestamp)
 
             csv_file.write(csv_line)
 

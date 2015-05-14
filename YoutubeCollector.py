@@ -35,34 +35,43 @@ date_time_sec_format = "%Y%m%d %H:%M:%S"
 
 date_time_log = time.strftime(date_time_format)
 
-_mode = "search"
+_mode = "auto"
 _from = None
 _to = None
+_b_avoid_ddbb = True
+_timeStamp = None
 
 _DIR_LOG = "LOGS"
 _DIR_DATA = "DATA"
+_DIR_CONFIG = "conf"
 _file_log = None
 _file_log_name = '%s\YoutubeGatherer_%s.log' % (_DIR_LOG, date_time_log)
 
-_query_bulk_load_yt_comments = """LOAD DATA LOCAL INFILE '%s' IGNORE
-                                 INTO TABLE YT_COMMENTS CHARACTER SET utf8mb4 FIELDS TERMINATED BY '\\t'
-                                 OPTIONALLY ENCLOSED BY '"' LINES TERMINATED BY '\\n' """
+_query_bulk_load_yt_comments = None
+_query_bulk_load_gp_comments = None
+_query_insert_yt_video_info = None
+_query_insert_yt_channel_info = None
+_query_insert_yt_social_shares = None
 
-_query_bulk_load_gp_comments = """LOAD DATA LOCAL INFILE '%s' IGNORE
-                                 INTO TABLE GP_COMMENTS CHARACTER SET utf8mb4 FIELDS TERMINATED BY '\\t'
-                                 OPTIONALLY ENCLOSED BY '"' LINES TERMINATED BY '\\n' """
+_query_bulk_load_yt_comments_regex = """LOAD DATA LOCAL INFILE '%s' IGNORE
+                                     INTO TABLE YT_COMMENTS CHARACTER SET utf8mb4 FIELDS TERMINATED BY '\\t'
+                                     OPTIONALLY ENCLOSED BY '"' LINES TERMINATED BY '\\n' """
 
-_query_insert_yt_video_info = """LOAD DATA LOCAL INFILE '%s' IGNORE INTO TABLE YT_VIDEOS
-                                FIELDS TERMINATED BY '\\t'
-                                OPTIONALLY ENCLOSED BY '"' LINES TERMINATED BY '\\n' """
+_query_bulk_load_gp_comments_regex = """LOAD DATA LOCAL INFILE '%s' IGNORE
+                                     INTO TABLE GP_COMMENTS CHARACTER SET utf8mb4 FIELDS TERMINATED BY '\\t'
+                                     OPTIONALLY ENCLOSED BY '"' LINES TERMINATED BY '\\n' """
 
-_query_insert_yt_channel_info = """LOAD DATA LOCAL INFILE '%s' IGNORE
-                                  INTO TABLE YT_CHANNELS FIELDS TERMINATED BY '\\t'
-                                  OPTIONALLY ENCLOSED BY '"' LINES TERMINATED BY '\\n' """
+_query_insert_yt_video_info_regex = """LOAD DATA LOCAL INFILE '%s' IGNORE INTO TABLE YT_VIDEOS
+                                    FIELDS TERMINATED BY '\\t'
+                                    OPTIONALLY ENCLOSED BY '"' LINES TERMINATED BY '\\n' """
 
-_query_insert_yt_social_shares = """LOAD DATA LOCAL INFILE '%s' IGNORE
-                                   INTO TABLE YT_SOCIAL_SHARES FIELDS TERMINATED BY '\\t'
-                                   OPTIONALLY ENCLOSED BY '"' LINES TERMINATED BY '\\n' """
+_query_insert_yt_channel_info_regex = """LOAD DATA LOCAL INFILE '%s' IGNORE
+                                      INTO TABLE YT_CHANNELS FIELDS TERMINATED BY '\\t'
+                                      OPTIONALLY ENCLOSED BY '"' LINES TERMINATED BY '\\n' """
+
+_query_insert_yt_social_shares_regex = """LOAD DATA LOCAL INFILE '%s' IGNORE
+                                       INTO TABLE YT_SOCIAL_SHARES FIELDS TERMINATED BY '\\t'
+                                       OPTIONALLY ENCLOSED BY '"' LINES TERMINATED BY '\\n' """
 
 #_yt_csv_file_path = "g:\\\TFC\\\DATA\\\yt_comments_%s.csv"
 #_gp_csv_file_path = "g:\\\TFC\\\DATA\\\gp_comments_%s.csv"
@@ -70,18 +79,26 @@ _query_insert_yt_social_shares = """LOAD DATA LOCAL INFILE '%s' IGNORE
 #_yt_channels_csv_file_path = "g:\\\TFC\\\DATA\\\yt_channel_%s.csv"
 #_yt_social_csv_file_path = "g:\\\TFC\\\DATA\\\yt_social_%s.csv"
 
-_yt_csv_file_path = "DATA\\\yt_comments_%s.csv"
-_gp_csv_file_path = "DATA\\\gp_comments_%s.csv"
-_yt_videos_csv_file_path = "DATA\\\yt_videos_%s.csv"
-_yt_channels_csv_file_path = "DATA\\\yt_channel_%s.csv"
-_yt_social_csv_file_path = "DATA\\\yt_social_%s.csv"
+_yt_csv_file_path = None
+_gp_csv_file_path = None
+_yt_videos_csv_file_path = None
+_yt_channels_csv_file_path = None
+_yt_social_csv_file_path = None
+_videos_2_follow_config_file_path = None
 
+_yt_csv_file_path_regex = "DATA\\\yt_comments_%s.csv"
+_gp_csv_file_path_regex = "DATA\\\gp_comments_%s.csv"
+_yt_videos_csv_file_path_regex = "DATA\\\yt_videos_%s.csv"
+_yt_channels_csv_file_path_regex = "DATA\\\yt_channel_%s.csv"
+_yt_social_csv_file_path_regex = "DATA\\\yt_social_%s.csv"
+_videos_2_follow_config_file_path = '%s\\%s'% (_DIR_CONFIG, 'videos_2_follow_config_file.cfg')
 
 _gp_csv_file = None
 _yt_csv_file = None
 _yt_videos_csv_file = None
 _yt_channels_csv_file = None
 _yt_social_csv_file = None
+_videos_2_follow_config_file = None
 
 def printLogTime(msg, b_time):
 
@@ -146,11 +163,15 @@ def openDataFiles(mode):
     global _yt_channels_csv_file
     global _yt_social_csv_file
 
-    _gp_csv_file = codecs.open(_gp_csv_file_path, mode, 'utf-8')
-    _yt_csv_file = codecs.open(_yt_csv_file_path, mode, 'utf-8')
-    _yt_videos_csv_file = codecs.open(_yt_videos_csv_file_path, mode, 'utf-8')
-    _yt_channels_csv_file = codecs.open(_yt_channels_csv_file_path, mode, 'utf-8')
-    _yt_social_csv_file = codecs.open(_yt_social_csv_file_path, mode, 'utf-8')
+    try:
+        _gp_csv_file = codecs.open(_gp_csv_file_path, mode, 'utf-8')
+        _yt_csv_file = codecs.open(_yt_csv_file_path, mode, 'utf-8')
+        _yt_videos_csv_file = codecs.open(_yt_videos_csv_file_path, mode, 'utf-8')
+        _yt_channels_csv_file = codecs.open(_yt_channels_csv_file_path, mode, 'utf-8')
+        _yt_social_csv_file = codecs.open(_yt_social_csv_file_path, mode, 'utf-8')
+    except IOError as ioe:
+        print "ERROR: Error opening file: %s [%s]" % (ioe.filename, ioe.strerror)
+        sys.exit(3)
 
 def closeDataFiles():
     global _gp_csv_file
@@ -171,18 +192,23 @@ def loadDataFilesInBD(yt_service):
 
     printLog("Loading data videos file into database... ")
     yt_service.executeLoadInBD(_query_insert_yt_video_info)
+    #raw_input('Press any key')
 
     printLog("Loading youtube data comments into database...\n")
     yt_service.executeLoadInBD(_query_bulk_load_yt_comments)
+    #raw_input('Press any key')
 
     printLog("Loading google+ data comments into database...\n")
     yt_service.executeLoadInBD(_query_bulk_load_gp_comments)
+    #raw_input('Press any key')
 
     printLog("Loading channel info into database...\n")
     yt_service.executeLoadInBD(_query_insert_yt_channel_info)
+    #raw_input('Press any key')
 
     printLog("Loading social web-sites shares data into database...\n")
     yt_service.executeLoadInBD(_query_insert_yt_social_shares)
+    #raw_input('Press any key')
 
 def loadVideos2Follow():
 
@@ -190,7 +216,33 @@ def loadVideos2Follow():
 
     return daoYoutubeCollector.getYoutubeVideosToFollow()
 
+def loadVideos2FollowFromConfigFile(yt_search_service):
 
+    global _videos_2_follow_config_file_path
+
+    arr_videos = []
+    arr_id_videos = None
+
+    if os.path.exists(_videos_2_follow_config_file_path):
+
+        _videos_2_follow_config_file = codecs.open(_videos_2_follow_config_file_path, 'r', 'utf-8')
+        arr_videos_info = [line.rstrip(os.linesep) for line in _videos_2_follow_config_file]
+        _videos_2_follow_config_file.close()
+
+        for row_video_info in arr_videos_info:
+
+            #print "DEBUG: row_video_info=%s" % row_video_info
+            row_video = row_video_info
+
+            video = yt_search_service.getVideo(row_video)
+            #print "DEBUG: channelId=%s" % video["snippet"]["channelId"]
+
+            arr_videos.append(video)
+
+    else:
+        print 'ERROR. The file %s does not exists.' % _videos_2_follow_config_file_path
+
+    return arr_videos
 
 
 def usage():
@@ -218,7 +270,7 @@ def main(argv):
     #exit(0)
 
     try:
-        opts, args = getopt.getopt(argv[1:], 'hmf:', ['help', 'mode='])
+        opts, args = getopt.getopt(argv[1:], 'hmf:', ['help', 'mode=', 'from', 'db'])
         if not opts:
             print 'No options supplied'
             #usage()
@@ -228,12 +280,15 @@ def main(argv):
         sys.exit(2)
 
     for opt, arg in opts:
+        #print 'DEBUG: opt=%s' % opt
         if opt in ('-h', '--help'):
             usage()
             sys.exit(2)
         elif opt in ('-m', '--mode'):
+            print 'opt es -m; arg es: %s' % arg
             global _mode
             _mode = arg
+            #print 'DEBUG: _mode = %s' % _mode
         elif opt in ('-f', '--from'):
             if _mode == 'loader':
                 global _from
@@ -241,6 +296,12 @@ def main(argv):
             else:
                 print "Error. '--mode loader' is required to set --from parameter."
                 sys.exit(2)
+        elif opt in ('-t'): # If parameter set, load data into database
+            global _timeStamp
+            _timeStamp = arg
+        elif opt in ('--db'): # If parameter set, load data into database
+            global _b_avoid_ddbb
+            _b_avoid_ddbb = False
 
 
     argv = []
@@ -263,12 +324,12 @@ def main(argv):
     global _yt_channels_csv_file
     global _yt_social_csv_file
 
-    if _mode == 'loader' and _from is None:
-        print "Error. '--from' parameter is required to set mode 'loader'."
-        sys.exit(2)
-    elif _from is not None and (_mode is None or _mode != 'loader'):
-        print "Error. '--mode' parameter is required to set --from parameter."
-        sys.exit(2)
+    #if _mode == 'loader' and _from is None:
+    #    print "Error. '--from' parameter is required to set mode 'loader'."
+    #    sys.exit(2)
+    #elif _from is not None and (_mode is None or _mode != 'loader'):
+    #    print "Error. '--mode' parameter is required to set --from parameter."
+    #    sys.exit(2)
 
 
     # ----- SOCIAL WEBS -------
@@ -302,23 +363,26 @@ def main(argv):
     if not os.path.exists(_DIR_DATA):
         os.makedirs(_DIR_DATA)
 
+    if not os.path.exists(_DIR_CONFIG):
+        os.makedirs(_DIR_CONFIG)
+
     #TODO: Cargar todos los parametros desde un fichero de configuracion: rutas, constantes, etc.
     #TODO: Cambiar el load por otra forma en la que se puedan cargar en remoto de forma rapida
 
     ts = time.time()
     today = datetime.datetime.fromtimestamp(ts).strftime('%Y-%m-%d')
 
-    _yt_csv_file_path %= today
-    _gp_csv_file_path %= today
-    _yt_videos_csv_file_path %= today
-    _yt_channels_csv_file_path %= today
-    _yt_social_csv_file_path %= today
+    _yt_csv_file_path = _yt_csv_file_path_regex % today
+    _gp_csv_file_path = _gp_csv_file_path_regex % today
+    _yt_videos_csv_file_path = _yt_videos_csv_file_path_regex % today
+    _yt_channels_csv_file_path = _yt_channels_csv_file_path_regex % today
+    _yt_social_csv_file_path = _yt_social_csv_file_path_regex % today
 
-    _query_bulk_load_yt_comments %= _yt_csv_file_path
-    _query_bulk_load_gp_comments %= _gp_csv_file_path
-    _query_insert_yt_video_info %= _yt_videos_csv_file_path
-    _query_insert_yt_channel_info %= _yt_channels_csv_file_path
-    _query_insert_yt_social_shares %= _yt_social_csv_file_path
+    _query_bulk_load_yt_comments = _query_bulk_load_yt_comments_regex % _yt_csv_file_path
+    _query_bulk_load_gp_comments = _query_bulk_load_gp_comments_regex % _gp_csv_file_path
+    _query_insert_yt_video_info = _query_insert_yt_video_info_regex  % _yt_videos_csv_file_path
+    _query_insert_yt_channel_info = _query_insert_yt_channel_info_regex % _yt_channels_csv_file_path
+    _query_insert_yt_social_shares = _query_insert_yt_social_shares_regex %_yt_social_csv_file_path
 
 
     client = service.YouTubeService()
@@ -376,10 +440,10 @@ def main(argv):
     '''
 
     try:
+        print "MODE: %s" % _mode
         printLog("MODE: %s" % _mode)
 
         arr_videos = []
-        b_avoid_ddbb = True
 
         if(_mode == 'search'):
 
@@ -396,11 +460,11 @@ def main(argv):
                 'What order do you wish (date, rating, relevance, title, videoCount, viewCount)? (Default: relevance)')
             #max_results_input = raw_input('Max results? (Default: 1)')
             max_results_input = "1"
-            b_avoid_ddbb = raw_input('Avoid Database (Y/N)? (Default: Y) ')
+            _b_avoid_ddbb = raw_input('Avoid Database (Y/N)? (Default: Y) ')
 
             order_input = "relevance" if (order_input == "") else order_input
             max_results_input = "1" if (max_results_input == "") else max_results_input
-            b_avoid_ddbb = True if ((b_avoid_ddbb == "") | (b_avoid_ddbb == "Y")) else False
+            _b_avoid_ddbb = True if ((_b_avoid_ddbb == "") | (_b_avoid_ddbb == "Y")) else False
 
             argparser.add_argument("--q", help="Search term", default=subject_input)
             argparser.add_argument("--max-results", help="Max results", default=max_results_input)
@@ -425,15 +489,42 @@ def main(argv):
 
         elif _mode == 'auto':
 
-            printLog("Processing videos in automatic mode...")
+            if not _b_avoid_ddbb:
+                print "\nProcessing videos in automatic mode. Database activated..."
+                printLog("Processing videos in automatic mode. Database activated...")
+            else:
+                print "\nProcessing videos in automatic mode..."
+                printLog("Processing videos in automatic mode...")
+
             ''' In automatic mode, we have to APPEND multiple videos data to files'''
             openDataFiles('a')
-            arr_videos = loadVideos2Follow()
-            b_avoid_ddbb = False
+            #arr_videos = loadVideos2Follow()
+            #arr_videos = loadVideos2FollowFromConfigFile();
+            arr_videos = loadVideos2FollowFromConfigFile(yt_search_service)
+
+            yt_search_service.printYoutubeInfo2CSVFile(arr_videos, _yt_videos_csv_file)
+
 
         elif _mode == 'loader':
 
+            print 'DEGUB: *** Estamos en loader ***'
             printLog("Loading data files into database...")
+
+            # Concatenate the timeStamp config in arg
+            time_stamp_file = ""
+            time_stamp_file = _timeStamp if _timeStamp is not None else today;
+
+            _yt_csv_file_path = _yt_csv_file_path_regex % time_stamp_file
+            _gp_csv_file_path = _gp_csv_file_path_regex % time_stamp_file
+            _yt_videos_csv_file_path = _yt_videos_csv_file_path_regex  % time_stamp_file
+            _yt_channels_csv_file_path = _yt_channels_csv_file_path_regex % time_stamp_file
+            _yt_social_csv_file_path = _yt_social_csv_file_path_regex % time_stamp_file
+
+            _query_bulk_load_yt_comments = _query_bulk_load_yt_comments_regex % _yt_csv_file_path
+            _query_bulk_load_gp_comments = _query_bulk_load_gp_comments_regex % _gp_csv_file_path
+            _query_insert_yt_video_info = _query_insert_yt_video_info_regex  % _yt_videos_csv_file_path
+            _query_insert_yt_channel_info = _query_insert_yt_channel_info_regex % _yt_channels_csv_file_path
+            _query_insert_yt_social_shares = _query_insert_yt_social_shares_regex %_yt_social_csv_file_path
 
             openDataFiles('r')
             loadDataFilesInBD(yt_comments_service)
@@ -441,6 +532,8 @@ def main(argv):
             closeDataFiles()
 
             printLog("\tData files have been loaded correctly!\n")
+
+
 
 
         yt_count = 0
@@ -547,7 +640,7 @@ def main(argv):
         closeDataFiles()
 
         printLog("\n")
-        if not b_avoid_ddbb:
+        if not _b_avoid_ddbb:
 
             if _mode != 'auto':
                 b_cargar = raw_input("*** Do you want to load comments data files into database? (Y/N): ")

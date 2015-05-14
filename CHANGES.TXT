@@ -1,0 +1,26 @@
+YoutubeGartherer Changes
+This file contains change information for the current and previous YoutubeGartherer release.
+
+YoutubeGartherer  1.0.3 (2015/05/10)
+1. Now the application extract the comments from the video ID's specify in the config
+file "videos_2_follow_config_file.cfg" under the folder "conf"
+
+Bugs fixed
+- Error fixed when extracting G+ comments. The html exception "404 not found" is now captured.
+
+YoutubeGartherer  1.0.2 (2015/01/02)
+1. Change default "Collation" from utf-8 to utf8mb4 on tables: yt_videos and gp_comments
+
+Bugs fixed
+- Error fixed when loading DS_AUTHOR on table gp_comments
+
+YoutubeGartherer  1.0.1 (2014/12/19)
+1. Added new field to yt_videos data file to record the current datetime of downloaded data. This field allows to users to
+perform and historical analysis of video data.
+2. Change the default mode to 'auto' which load videos from the configuration file: conf/videos_2_follow_config_file.cfg
+
+Bugs fixed
+None
+
+YoutubeGartherer  1.0 (2014/12/01)
+First realease of the application.

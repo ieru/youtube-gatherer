@@ -56,7 +56,7 @@ class GoogleCommentsService(object):
     def printCSVYoutubeComment(self, yt_comment, video_id, gp_likes_activity):
         csv_format_string = "%s\t%s\t%s\t%s\t%s\t%s\t%s\n"
 
-        yt_author_name = yt_comment.author[0].name.text
+        yt_author_name = str(yt_comment.author[0].name.text)
         yt_content = str(yt_comment.content.text)
         # Remove BOM character
         yt_content = yt_content.replace('\xef\xbb\xbf', '')
@@ -105,6 +105,9 @@ class GoogleCommentsService(object):
                                     self.formatYoutubeDate(yt_published), yt_reply_count, gp_likes_activity, video_id)
 
     def printCSVGooglePlusComment(self, gp_service, gp_comment, yt_comment_id, num_replies, video_id):
+
+        #print 'DEBUG: printCSVGooglePlusComment() - INIT'
+
         csv_format_string = "%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\n"
         arr_gp_comment_fields = gp_service.getArrayGooglePlusCommentFields(gp_comment)
 
@@ -113,9 +116,9 @@ class GoogleCommentsService(object):
         formatted_published_time = self.formatYoutubeDate(arr_gp_comment_fields[3])
         parsed_comment_body = htmlParser.unescape(arr_gp_comment_fields[2])
 
-        #print "DEBUG: content: '%s'" % arr_gp_comment_fields[2]
+        gp_author = arr_gp_comment_fields[1].decode("utf-8") if isinstance(arr_gp_comment_fields[1], str) else unicode(arr_gp_comment_fields[1])
 
-        return csv_format_string % (arr_gp_comment_fields[0], arr_gp_comment_fields[1],
+        return csv_format_string % (arr_gp_comment_fields[0], gp_author,
                                     parsed_comment_body, formatted_published_time, arr_gp_comment_fields[4],
                                     yt_comment_id, num_replies, video_id)
 
@@ -175,7 +178,7 @@ class GoogleCommentsService(object):
 
             yt_conn.commit()
 
-            '''# Uncomment to Debug
+            # Uncomment to Debug
             total = long(str(vars(yt_cursor)['_info']).split(':')[1].strip(' ').split(' ')[0])
             skipped = long(str(vars(yt_cursor)['_info']).split(':')[3].strip(' ').split(' ')[0])
 
@@ -185,7 +188,7 @@ class GoogleCommentsService(object):
             print "Result: %s" % vars(yt_cursor)['_info']
             print "Loaded: %s" % str(total - skipped)
             print "********************************************************"
-            '''
+
 
             yt_cursor.close()
             yt_conn.close()
@@ -247,8 +250,11 @@ class GoogleCommentsService(object):
                     print "****************************************************\n"
 
                     if retries_counter > 0:
-                        if request_error[0]['status'] == '500':
-                            retries_counter -= 1
-                            print "Retrying extraction from index of comments [%s]..." % comments_count
-                            url += "&start-index=%s" % comments_count
-                            print "URL: %s" % url
+                        retries_counter -= 1
+                        ''' Uncomment to debug
+                        print "Retrying extraction from index of comments [%s]..." % comments_count
+                        '''
+                        url += "&start-index=%s" % comments_count
+                        ''' Uncomment to debug
+                        print "URL: %s" % url
+                        '''
