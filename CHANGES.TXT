@@ -1,6 +1,12 @@
 YoutubeGartherer Changes
 This file contains change information for the current and previous YoutubeGartherer release.
 
+YoutubeGartherer  1.0.4 (2015/07/13)
+1. Field separator changed from tabulation to semicolum (;)
+2. Authorization mode changed from ClientLogin (API v1) to OAuth2
+3. Included option to upload files to Amazon S3 account.
+4. Included a progressbar for each processed video.
+
 YoutubeGartherer  1.0.3 (2015/05/10)
 1. Now the application extract the comments from the video ID's specify in the config
 file "videos_2_follow_config_file.cfg" under the folder "conf"

@@ -16,6 +16,8 @@ class YoutubeSearch():
     YOUTUBE_API_SERVICE_NAME = ""
     YOUTUBE_API_VERSION = ""
 
+    _FS = ';' # Field Separator
+
     _youtube = None
 
     def __init__(self):
@@ -95,7 +97,7 @@ class YoutubeSearch():
 
     def printYoutubeInfo2CSVFile(self, arr_yt_videos_info, csv_file):
 
-        csv_format_string = "%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\n"
+        csv_format_string = "%s"+ self._FS + "%s"+ self._FS + "%s"+ self._FS + "%s"+ self._FS + "%s"+ self._FS + "%s"+ self._FS + "%s"+ self._FS + "%s"+ self._FS + "%s"+ self._FS + "%s\n"
 
         for yt_video_info in arr_yt_videos_info:
             #print "Video Id: %s" % yt_video_info["id"]
@@ -136,7 +138,7 @@ class YoutubeSearch():
         # query term.
         search_response = self._youtube.search().list(
             q=options.q,
-            part="id,snippet",
+            part="id,snippet,statistics",
             type="video",
             maxResults=options.max_results,
             order=options.order
@@ -167,6 +169,25 @@ class YoutubeSearch():
         #print "Playlists:\n", "\n".join(playlists), "\n"
 
         return videos
+
+    def get_total_video_comments(self, options):
+
+        # Call the search.list method to retrieve results matching the specified
+        # query term.
+        search_response = self._youtube.search().list(
+            q=options.q,
+            part="statistics",
+            type="video",
+            maxResults=1,
+            order=options.order
+        ).execute()
+
+        result = -1
+        for search_result in search_response.get("items", []):
+            result = search_result["statistics"]["commentCount"]
+
+        return result
+
 
     def PrintUserEntry(self, entry):
       # print required fields where we know there will be information

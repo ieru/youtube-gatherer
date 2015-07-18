@@ -24,6 +24,8 @@ class YoutubeChannel():
     YOUTUBE_API_SERVICE_NAME = "youtube"
     YOUTUBE_API_VERSION = "v3"
 
+    _FS = ';' # Field Separator
+
     _youtube = None
 
     def __init__(self):
@@ -31,7 +33,7 @@ class YoutubeChannel():
                               developerKey=self.DEVELOPER_KEY)
 
     def printCSVYoutubeChannelInfo(self, channel_id, record):
-        csv_format_string = "%s\t%s\t%s\t%s\t%s\t%s\t%s\n"
+        csv_format_string = "%s" + self._FS + "%s" + self._FS + "%s" + self._FS + "%s" + self._FS + "%s" + self._FS + "%s" + self._FS + "%s\n"
 
         str_title = record["snippet"]["title"]
         str_viewCount = record["statistics"]["viewCount"]
@@ -54,7 +56,7 @@ class YoutubeChannel():
 
     def printChannelInfo2CSVFile(self, channel_id, record, csv_file):
 
-        csv_format_string = "%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\n"
+        csv_format_string = "%s"+ self._FS + "%s"+ self._FS + "%s"+ self._FS + "%s"+ self._FS + "%s"+ self._FS + "%s"+ self._FS + "%s"+ self._FS + "%s\n"
         ts = time.time()
 
         str_title = record["snippet"]["title"]

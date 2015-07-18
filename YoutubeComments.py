@@ -19,6 +19,8 @@ class GoogleCommentsService(object):
     _COMMENTS_COUNT = 0
     _TEXT_CHARSET = 'utf-8'
 
+    _FS = ';' # Field Separator
+
     def __init__(self, argv):
         print ""
 
@@ -54,7 +56,7 @@ class GoogleCommentsService(object):
         return formated_time
 
     def printCSVYoutubeComment(self, yt_comment, video_id, gp_likes_activity):
-        csv_format_string = "%s\t%s\t%s\t%s\t%s\t%s\t%s\n"
+        csv_format_string = "%s" + self._FS + "%s" + self._FS + "%s" + self._FS + "%s" + self._FS + "%s" + self._FS + "%s" + self._FS + "%s\n"
 
         yt_author_name = str(yt_comment.author[0].name.text)
         yt_content = str(yt_comment.content.text)
@@ -108,7 +110,7 @@ class GoogleCommentsService(object):
 
         #print 'DEBUG: printCSVGooglePlusComment() - INIT'
 
-        csv_format_string = "%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\n"
+        csv_format_string = "%s" + self._FS + "%s" + self._FS + "%s" + self._FS + "%s" + self._FS + "%s" + self._FS + "%s" + self._FS + "%s" + self._FS + "%s\n"
         arr_gp_comment_fields = gp_service.getArrayGooglePlusCommentFields(gp_comment)
 
         htmlParser = HTMLParser.HTMLParser()

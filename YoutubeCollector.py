@@ -4,6 +4,7 @@
 __author__ = 'antoniofsanjuan'
 __file__ = 'YoutubeCollector'
 
+import argparse
 import datetime
 import commands
 import os
@@ -12,19 +13,47 @@ import time
 import codecs
 import HTMLParser
 import getopt
-import dao.DAOYoutubeCollector
+import platform
+import math
 
-from apiclient.errors import HttpError
+import httplib2
+
+#from apiclient.errors import HttpError
 from YoutubeSearch import YoutubeSearch
 from YoutubeChannel import YoutubeChannel
 from SocialWebSites import SocialWebSites
 from dao.DAOYoutubeCollector import DAOYoutubeCollector
+import dao.DAOYoutubeCollector
+from S3manager import S3manager
 
 from gdata.youtube import service
 from plus import GooglePlusService
-from YoutubeComments import GoogleCommentsService
-from oauth2client.tools import argparser
+from YoutubeComments_v3 import GoogleCommentsService
 
+from apiclient import discovery
+
+from oauth2client.file import Storage
+from oauth2client.client import flow_from_clientsecrets
+from oauth2client import tools
+from oauth2client.client import AccessTokenRefreshError
+
+from oauth2client.client import OAuth2WebServerFlow
+
+from apiclient.discovery import build
+
+import httplib2
+import os
+import sys
+
+from apiclient.discovery import build_from_document
+from apiclient.errors import HttpError
+from oauth2client.client import flow_from_clientsecrets
+from oauth2client.file import Storage
+from oauth2client.tools import argparser, run_flow
+
+import progressbar
+from threading import Thread, Event
+from Queue import Queue
 
 USERNAME = 'uahytcollector@gmail.com'
 PASSWORD = 'x3jkW5.a'
@@ -39,13 +68,17 @@ _mode = "auto"
 _from = None
 _to = None
 _b_avoid_ddbb = True
+_load_files_to_s3 = False
+_get_files_from_s3 = False
 _timeStamp = None
 
 _DIR_LOG = "LOGS"
 _DIR_DATA = "DATA"
 _DIR_CONFIG = "conf"
 _file_log = None
-_file_log_name = '%s\YoutubeGatherer_%s.log' % (_DIR_LOG, date_time_log)
+
+_progress_bar = None
+_proccessing_video = None
 
 _query_bulk_load_yt_comments = None
 _query_bulk_load_gp_comments = None
@@ -86,12 +119,29 @@ _yt_channels_csv_file_path = None
 _yt_social_csv_file_path = None
 _videos_2_follow_config_file_path = None
 
-_yt_csv_file_path_regex = "DATA\\\yt_comments_%s.csv"
-_gp_csv_file_path_regex = "DATA\\\gp_comments_%s.csv"
-_yt_videos_csv_file_path_regex = "DATA\\\yt_videos_%s.csv"
-_yt_channels_csv_file_path_regex = "DATA\\\yt_channel_%s.csv"
-_yt_social_csv_file_path_regex = "DATA\\\yt_social_%s.csv"
-_videos_2_follow_config_file_path = '%s\\%s'% (_DIR_CONFIG, 'videos_2_follow_config_file.cfg')
+
+if (platform.system().lower() == 'windows'):
+
+    _file_log_name = '%s\YoutubeGatherer_%s.log' % (_DIR_LOG, date_time_log)
+
+    _yt_csv_file_path_regex = "DATA\\\yt_comments_%s.csv"
+    _gp_csv_file_path_regex = "DATA\\\gp_comments_%s.csv"
+    _yt_videos_csv_file_path_regex = "DATA\\\yt_videos_%s.csv"
+    _yt_channels_csv_file_path_regex = "DATA\\\yt_channel_%s.csv"
+    _yt_social_csv_file_path_regex = "DATA\\\yt_social_%s.csv"
+    _videos_2_follow_config_file_path = '%s\\%s'% (_DIR_CONFIG, 'videos_2_follow_config_file.cfg')
+
+else:
+
+    _file_log_name = '%s/YoutubeGatherer_%s.log' % (_DIR_LOG, date_time_log)
+
+    _yt_csv_file_path_regex = "DATA/yt_comments_%s.csv"
+    _gp_csv_file_path_regex = "DATA/gp_comments_%s.csv"
+    _yt_videos_csv_file_path_regex = "DATA/yt_videos_%s.csv"
+    _yt_channels_csv_file_path_regex = "DATA/yt_channel_%s.csv"
+    _yt_social_csv_file_path_regex = "DATA/yt_social_%s.csv"
+    _videos_2_follow_config_file_path = '%s/%s'% (_DIR_CONFIG, 'videos_2_follow_config_file.cfg')
+
 
 _gp_csv_file = None
 _yt_csv_file = None
@@ -121,7 +171,7 @@ def printLogTime(msg, b_time):
         else:
             _file_log.write('%s\n' % msg)
     except UnicodeDecodeError:
-        print("--------------> Caracter no reconocido. Seguimos...")
+        #print("--------------> Caracter no reconocido. Seguimos...")
         _file_log.write('%s\n' % msg.decode('utf-8'))
         sys.exc_clear()
 
@@ -137,7 +187,7 @@ def printCommentsFile(msg):
     try:
         _yt_csv_file.write('%s\n' % msg)
     except UnicodeDecodeError:
-        print("--------------> Caracter no reconocido. Seguimos...")
+        #print("--------------> Caracter no reconocido. Seguimos...")
         _yt_csv_file.write('%s\n' % msg.decode('utf-8'))
         sys.exc_clear()
 
@@ -180,12 +230,15 @@ def closeDataFiles():
     global _yt_channels_csv_file
     global _yt_social_csv_file
 
-    _gp_csv_file.close()
-    _yt_csv_file.close()
-    _yt_videos_csv_file.close()
-    _yt_channels_csv_file.close()
-    _yt_social_csv_file.close()
+    try:
+        _gp_csv_file.close()
+        _yt_csv_file.close()
+        _yt_videos_csv_file.close()
+        _yt_channels_csv_file.close()
+        _yt_social_csv_file.close()
 
+    except:
+        pass
 
 
 def loadDataFilesInBD(yt_service):
@@ -245,11 +298,157 @@ def loadVideos2FollowFromConfigFile(yt_search_service):
     return arr_videos
 
 
+def get_oauth2_authenticated_service(args):
+
+        print "get_oauth2_authenticated_service: *** INIT ***"
+
+        CLIENT_SECRETS_FILE = "client_secrets.json"
+
+        # A limited OAuth 2 access scope that allows for uploading files, but not other
+        # types of account access.
+        YOUTUBE_READONLY_SCOPE = "https://www.googleapis.com/auth/youtube.readonly"
+        YOUTUBE_READ_WRITE_SSL_SCOPE = "https://www.googleapis.com/auth/youtube.force-ssl"
+        YOUTUBE_API_SERVICE_NAME = "youtube"
+        YOUTUBE_API_VERSION = "v3"
+
+        REDIRECT_URI = 'http://localhost:8080/'
+
+        # Helpful message to display if the CLIENT_SECRETS_FILE is missing.
+        MISSING_CLIENT_SECRETS_MESSAGE = """
+        WARNING: Please configure OAuth 2.0
+
+        To make this sample run you will need to populate the client_secrets.json file
+        found at:
+
+           %s
+
+        with information from the APIs Console
+        https://code.google.com/apis/console#access
+
+        For more information about the client_secrets.json file format, please visit:
+        https://developers.google.com/api-client-library/python/guide/aaa_client_secrets
+        """ % os.path.abspath(os.path.join(os.path.dirname(__file__),
+                                           CLIENT_SECRETS_FILE))
+
+        credentials = None
+        num_retries = 3
+        b_error = True
+
+        while num_retries > 0 and b_error:
+
+            if 0 < num_retries < 3:
+                print "Retrying connection..."
+
+            try:
+
+                flow = flow_from_clientsecrets(CLIENT_SECRETS_FILE,
+                  message=MISSING_CLIENT_SECRETS_MESSAGE,
+                  scope=YOUTUBE_READ_WRITE_SSL_SCOPE)
+
+                #parser = argparse.ArgumentParser(parents=[tools.argparser])
+                #flags = parser.parse_args()
+
+                #if credentials is None or credentials.invalid:
+                #    credentials = run_flow(flow, storage, flags)
+
+
+                storage = Storage("%s-oauth2.dat" % sys.argv[0])
+                credentials = storage.get()
+
+                # Building default args to pass to run_flow function
+                # This avoid conflicts with the custom params of the application
+                flags = tools.argparser.parse_args(args=[])
+
+                if credentials is None or credentials.invalid:
+
+                    print "\t Credential is not longer valid"
+                    credentials = run_flow(flow, storage, flags)
+
+
+                youtube = build(YOUTUBE_API_SERVICE_NAME, YOUTUBE_API_VERSION, http=credentials.authorize(httplib2.Http()))
+
+                #results = youtube.commentThreads().list(
+                #    part="snippet",
+                #    videoId='PAHRBOYG8sg',
+                #    maxResults=5,
+                #    key='usKbvXnvKS9XA377cncN0oZJ'
+                #).execute()
+                #
+                #for item in results["items"]:
+                #    comment = item["snippet"]["topLevelComment"]
+                #    author = comment["snippet"]["authorDisplayName"]
+                #    text = comment["snippet"]["textDisplay"]
+                #    print "Comment by %s: %s" % (author, text)
+
+
+                return youtube
+
+
+                    #auth_uri = flow.step1_get_authorize_url()
+                    #
+                    #opener = httplib2.Http();
+                    #opener.follow_all_redirects = True;
+                    #opener.follow_redirects = True;
+                    #
+                    #(response, body) = opener.request(auth_uri)
+                    #
+                    #print "response %s" % response
+                    #
+                    ## Manual refresh entering the url by console
+                    #auth_code = raw_input('Enter authorization code (parameter of URL): ')
+                    #credentials = flow.step2_exchange(auth_code)
+                    #
+                    #storage.put(credentials)
+
+                #http_auth = credentials.authorize(httplib2.Http())
+                #
+                #print "get_oauth2_authenticated_service: *** END ***"
+                #
+                #return discovery.build(YOUTUBE_API_SERVICE_NAME, YOUTUBE_API_VERSION, http=http_auth)
+
+                b_error = False
+
+            except AccessTokenRefreshError:
+                print "Warming: Credential is expired. Retrying connection..."
+                b_error = True
+                num_retries -= 1
+                time.sleep(5)
+                continue
+
+        print "get_oauth2_authenticated_service: *** END NONE***"
+        return None
+
+
+
 def usage():
     print 'Usage: '+sys.argv[0]+' -m <auto|search|loader[-t yyyy-mm-dd]>'
     print '\t-m: or --mode, set the working mode (search, auto collector and loader)'
     print '\t\t--from: load data files since the specified date wirh format \'yyyy-mm-dd\''
-    print '\t\t--to: load data files until the specified date wirh format \'yyyy-mm-dd\' or today if none is set.'
+    print '\t\t--db: load data files into MySql database. MySql database must be created and activated.'
+    #print '\t\t--s3: upload data files to S3 Amazon service.'
+
+
+def print_progress(q, e):
+
+    while True:
+        if e.is_set():
+            # if our event is set, break out of the infinite loop and
+            # prepare to terminate this thread
+
+            sys.stdout.write('\r\t[%s] %s%%' % (('#' * int(p / 2)).ljust(50, ' '), 100))
+            break
+
+        while not q.full():
+            # wait for more progress to be made
+            time.sleep(0.1)
+
+        # get the current progress value
+        p = q.get()
+
+        sys.stdout.write('\r\t[%s] %s%%' % (('#' * int(p / 2)).ljust(50, ' '), int(p)))
+        #sys.stdout.write(' --> t = %s' % time.strftime(date_time_sec_format))
+        sys.stdout.flush()
+
 
 ############################################
 ###############     MAIN    ################
@@ -270,7 +469,7 @@ def main(argv):
     #exit(0)
 
     try:
-        opts, args = getopt.getopt(argv[1:], 'hmf:', ['help', 'mode=', 'from', 'db'])
+        opts, args = getopt.getopt(argv[1:], 'hmf:', ['help', 'mode=', 'from', 'db', 's3', 's3-get'])
         if not opts:
             print 'No options supplied'
             #usage()
@@ -302,6 +501,12 @@ def main(argv):
         elif opt in ('--db'): # If parameter set, load data into database
             global _b_avoid_ddbb
             _b_avoid_ddbb = False
+        elif opt in ('--s3'): # If parameter set, upload data files to Amazon S3
+            global _load_files_to_s3
+            _load_files_to_s3 = True
+        elif opt in ('--s3-get'): # If parameter set, daownload data files from Amazon S3 to local
+            global _get_files_from_s3
+            _get_files_from_s3 = True
 
 
     argv = []
@@ -324,14 +529,10 @@ def main(argv):
     global _yt_channels_csv_file
     global _yt_social_csv_file
 
-    #if _mode == 'loader' and _from is None:
-    #    print "Error. '--from' parameter is required to set mode 'loader'."
-    #    sys.exit(2)
-    #elif _from is not None and (_mode is None or _mode != 'loader'):
-    #    print "Error. '--mode' parameter is required to set --from parameter."
-    #    sys.exit(2)
+    global _progress_bar
+    global _proccessing_video
 
-
+    _proccessing_video = None
     # ----- SOCIAL WEBS -------
 
     video_url = "https://www.youtube.com/watch?v=%s"
@@ -385,8 +586,16 @@ def main(argv):
     _query_insert_yt_social_shares = _query_insert_yt_social_shares_regex %_yt_social_csv_file_path
 
 
-    client = service.YouTubeService()
-    client.ClientLogin(USERNAME, PASSWORD)
+    #client = service.YouTubeService()
+    #client.ClientLogin(USERNAME, PASSWORD)
+
+
+    #args = argparser.parse_args()
+    yt_service = get_oauth2_authenticated_service(args)
+
+
+    #http_auth = credentials.authorize(httplib2.Http())
+    #yt_service = build('youtube', 'v3', http=http_auth)
 
     global _file_log
     global _file_log_name
@@ -489,17 +698,30 @@ def main(argv):
 
         elif _mode == 'auto':
 
+            print "Processing videos in automatic mode.\n"
+            printLog("Processing videos in automatic mode.\n")
+
             if not _b_avoid_ddbb:
-                print "\nProcessing videos in automatic mode. Database activated..."
-                printLog("Processing videos in automatic mode. Database activated...")
-            else:
-                print "\nProcessing videos in automatic mode..."
-                printLog("Processing videos in automatic mode...")
+                print "\t* Load files into database activated.\n"
+                printLog("\t* Load files into database activated.\n")
+
+            if _load_files_to_s3:
+                print "\t* Upload files to Amazon S3 service is activated."
+                printLog("\t* Upload files to Amazon S3 service is activated.")
+
+            if _get_files_from_s3:
+                print "\t* Downloading data files from Amazon S3..."
+                printLog("\t* Downloading data files from Amazon S3...")
+
+                s3_service = S3manager()
+
+                s3_service.get_files_to_local('G:\\tmp')
+
+                exit(0)
+
 
             ''' In automatic mode, we have to APPEND multiple videos data to files'''
             openDataFiles('a')
-            #arr_videos = loadVideos2Follow()
-            #arr_videos = loadVideos2FollowFromConfigFile();
             arr_videos = loadVideos2FollowFromConfigFile(yt_search_service)
 
             yt_search_service.printYoutubeInfo2CSVFile(arr_videos, _yt_videos_csv_file)
@@ -507,7 +729,6 @@ def main(argv):
 
         elif _mode == 'loader':
 
-            print 'DEGUB: *** Estamos en loader ***'
             printLog("Loading data files into database...")
 
             # Concatenate the timeStamp config in arg
@@ -540,7 +761,8 @@ def main(argv):
         gp_count = 0
         for video in arr_videos:
             video_id = video['id']
-            printLog("Processing video with id: %s\n" % video_id)
+            printLog("Processing video with id: '%s' and total comments: %s\n" % ( video_id, video['statistics']['commentCount'] ))
+            print "Processing video with id: '%s' and total comments: %s\n" % ( video_id, video['statistics']['commentCount'] )
 
             channel_id = video['snippet']['channelId']
 
@@ -568,38 +790,48 @@ def main(argv):
             printLog("\n")
 
             printLog("\nRetrieving \"Comments\" from Youtube...\n")
-            for comment in yt_comments_service.comments_generator(client, video_id):
+            print "Retrieving comments from Youtube..."
 
-                #print "-----> DEBUG: Tenemos un nuevo comentario..."
+            #yt_comments_service.comments_generator(yt_service, video_id)
+            ###bar = Bar('Loading', fill='@', suffix='%(percent)d%%')
+
+            queue = Queue(1)   # used to communicate progress to the thread
+            event = Event()    # used to tell the thread when to finish
+            progress = 0
+            _progress_bar = Thread(target=print_progress, args=(queue, event))
+
+            total_comments = int(video['statistics']['commentCount'])
+            _progress_bar.start()
+
+            for item in yt_comments_service.comments_generator(yt_service, video_id):
+
                 yt_count += 1
-                author_name = comment.author[0].name.text
-                text = comment.content.text
-                last_pos = comment.id.text.rfind('/')
 
-                comment_id = comment.id.text[last_pos + 1::]
-                printLogTime("YT_Comment:%s" % comment.id.text, False)
-                printLogTime("Author:%s" % comment.author[0].name.text, False)
+                comment = item["snippet"]["topLevelComment"]
+                author = comment["snippet"]["authorDisplayName"]
+                text = comment["snippet"]["textDisplay"]
+                likes = comment["snippet"]["likeCount"]
 
-                printLogTime(comment.content.text, False)
+                comment_id = comment['id']
 
-                comment_string = comment.ToString()
-                replycount_first = comment_string.find("replyCount")
-                replycount_last = comment_string.find("</ns1:replyCount>")
-                printLog("*** G+ Comments? ----> %s" % comment_string[replycount_first + 11:replycount_last])
-                reply_count = int(comment_string[replycount_first + 11:replycount_last])
+                reply_count = int( item["snippet"]['totalReplyCount'] )
+                #print "\tDEBUG: Author = %s" % author
+                #print "\tDEBUG: Comment = %s" % text
+                #print "\tDEBUG: reply_count = %s" % reply_count
+
+                try:
+
+                    _yt_csv_file.write(yt_comments_service.printCSVYoutubeComment(item, video_id, likes))
+
+                except:
+                    printLogTime("ERROR: Error writing Youtube comment to file.\nException: %s" % sys.exc_info()[0], True)
+                    printLogTime(sys.exc_info(), True);
+                    pass
 
                 if reply_count > 0:
                     # Retriving Likes for the global activity
                     gp_comment_activity_likes = gp_service.getActivityById(comment_id)
                     printLog("\n\tRetrieving \"G+ Comments\" from G+ Social Network...")
-
-                    try:
-
-                        _yt_csv_file.write(yt_comments_service.printCSVYoutubeComment(comment, video_id,
-                                                                                 gp_comment_activity_likes))
-                    except:
-                        printLogTime("ERROR: Error writing Youtube comment to file.\nException: %s" % sys.exc_info()[0], True)
-                        pass
 
                     # Retriving all comments and fields, then write them down to the G+ file
                     for gp_comment in gp_service.googlePlusActitivyInfoGenerator(comment_id):
@@ -628,6 +860,15 @@ def main(argv):
 
                 printLogTime("", False)
                 # End For comments Loop
+
+                progress = math.ceil( ((yt_count + gp_count) * 100) / total_comments )
+                queue.put( min(progress, 100) )
+
+            # reached 100%; kill the thread and exit
+            event.set()
+            _progress_bar.join()
+            print ""
+
 
         _COMMENNTS_COUNT = yt_count + gp_count
         printLog("\n*****************************************")
@@ -659,11 +900,51 @@ def main(argv):
             else:
                 printLog("*** WARM ***: \tData files have not been loaded!")
 
-        _file_log.close()
+
+        if _load_files_to_s3:
+
+            ## Uncomment to list files in working directory at HEROKU
+            #print "List of files:\n"
+            #for file in os.listdir("."):
+            #    print file
+
+
+            s3_service = S3manager()
+
+            time_folder = time.strftime("%Y%m%d")
+            data_folder = time_folder + s3_service._OS_REMOTE_PATH_SEPARATOR + 'DATA'
+
+            s3_service.createFolder(data_folder)
+
+            openDataFiles('r')
+
+            arr_files_to_s3 = []
+            arr_files_to_s3.append( _gp_csv_file_path )
+            arr_files_to_s3.append( _yt_csv_file_path )
+            arr_files_to_s3.append( _yt_videos_csv_file_path )
+            arr_files_to_s3.append( _yt_channels_csv_file_path )
+            arr_files_to_s3.append( _yt_social_csv_file_path )
+
+            s3_result = s3_service.upload_files(arr_files_to_s3, time_folder)
+
+            if s3_result:
+                print "Files upload to S3 completed successfully!"
+            else:
+                print "Error: Files couldn't be upload to S3 storage!"
+
+
+            if not s3_service.check_space_available():
+                print "Warning: Check space available in S3 service. Delete files if needed."
+
 
     except (KeyboardInterrupt, SystemExit):
         print "\n\nShutting down youtube-gatherer..."
         pass
+    finally:
+        closeDataFiles()
+
+    _file_log.close()
+
 
 if __name__ == '__main__':
     main(sys.argv)

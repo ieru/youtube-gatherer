@@ -1,0 +1,8 @@
+oauth2client==1.4.11
+google-api-python-client==1.4.0
+httplib2==0.9.1
+mysql-python==1.2.4
+mysql-connector-python==2.0.4
+gdata==2.0.18
+boto==2.38.0
+progressbar==2.3

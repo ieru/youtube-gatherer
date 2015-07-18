@@ -8,6 +8,8 @@ import time, datetime
 
 class SocialWebSites():
 
+    _FS = ';' # Field Separator
+
     def getFacebookLinkSharedCount(self, video_url):
 
         url = "http://graph.facebook.com/?id=%s" % video_url
@@ -70,7 +72,7 @@ class SocialWebSites():
     def printSocialSharesInfo2CSVFile(self, video_id, csv_file):
 
         video_url = "https://www.youtube.com/watch?v=%s"
-        csv_format_string = "%s\t%s\t%s\t%s\n"
+        csv_format_string = "%s" + self._FS + "%s" + self._FS + "%s" + self._FS + "%s\n"
         ts = time.time()
 
         id_facebook = 1

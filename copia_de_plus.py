@@ -18,21 +18,12 @@
 """Simple command-line sample for the Google+ API.
 
 Command-line application that retrieves the list of the user's posts."""
-
-from apiclient.errors import HttpError
+#from apiclient.errors import HttpError
 import oauth2client
-from oauth2client import client
 from oauth2client.client import AccessTokenRefreshError
 import time
-#from oauth2client.anyjson import simplejson
-from oauth2client.client import OAuth2WebServerFlow
-import httplib2
-from apiclient.discovery import build
-from oauth2client.tools import argparser, run_flow
-from oauth2client.file import Storage
+from oauth2client.anyjson import simplejson
 
-import urllib2
-import json
 
 __author__ = 'antoniofsanjuan@gmail.com'
 __file__ = 'client_secrets.json'
@@ -41,8 +32,6 @@ from apiclient import sample_tools
 
 
 class GooglePlusService(object):
-
-    _FS = ';' # Field Separator
 
     def getGooglePlusActitivyInfo(self, activity_id):
 
@@ -103,7 +92,7 @@ class GooglePlusService(object):
             dt_published = comment['published']
             num_replies = comment['plusoners']['totalItems']
 
-            return "%s"+ self._FS + "%s"+ self._FS + "%s"+ self._FS + "%s"+ self._FS + "%s\n" % (id_comment, author, content, dt_published, num_replies)
+            return "%s\t%s\t%s\t%s\t%s\n" % (id_comment, author, content, dt_published, num_replies)
 
     def getArrayGooglePlusCommentFields(self, comment):
 
@@ -167,37 +156,37 @@ class GooglePlusService(object):
 
         while num_retries > 0 and b_error:
 
-            try:
-                if self._gp_service is None:
-                    self._gp_service, flags = sample_tools.init(
-                        self._argv, 'plus', 'v1', __doc__, __file__,
-                        scope='https://www.googleapis.com/auth/plus.me')
+            #try:
+            if self._gp_service is None:
+                self._gp_service, flags = sample_tools.init(
+                    self._argv, 'plus', 'v1', __doc__, __file__,
+                    scope='https://www.googleapis.com/auth/plus.me')
 
-                b_error = False
+            b_error = False
 
-                activity_resource = self._gp_service.activities()
-                activity = activity_resource.get(activityId=comment_id).execute()
+            activity_resource = self._gp_service.activities()
+            activity = activity_resource.get(activityId=comment_id).execute()
 
-            except HttpError, err:
-                if err.resp.get('content-type', '').startswith('application/json'):
-                    data = simplejson.loads(self.content)
-                    reason = data['error']['message']
+            #except HttpError, err:
+            #    if err.resp.get('content-type', '').startswith('application/json'):
+            #        data = simplejson.loads(self.content)
+            #        reason = data['error']['message']
 
-                    print "Warming: Error retrieving G+ comment. Reason: %s" % reason
+                    #print "Warming: Error retrieving G+ comment. Reason: %s" % reason
 
                 # If the error is a rate limit or connection error, wait and
                 # try again.
-                if err.resp.status in [403, 404, 500, 503]:
-                    time.sleep(5)
-                else:
-                    raise
-            except AccessTokenRefreshError:
-                print "Warming: Credential is expired. Retrying connection..."
-                b_error = True
-                num_retries -= 1
-                self._gp_service = None
-                time.sleep(5)
-                continue
+            #    if err.resp.status in [403, 404, 500, 503]:
+            #        time.sleep(5)
+            #    else:
+            #        raise
+            #except AccessTokenRefreshError:
+            #    print "Warming: Credential is expired. Retrying connection..."
+            #    b_error = True
+            #    num_retries -= 1
+            #    self._gp_service = None
+            #    time.sleep(5)
+            #    continue
 
         #print "\tLikes: %s" % activity['object']['plusoners']['totalItems']
 
@@ -216,11 +205,7 @@ class GooglePlusService(object):
                 #print activity['id'], activity['object']['content']
                 self.getGooglePlusActitivyInfo(self._gp_service, activity['id'])
 
-
-
-
     def __init__(self, argv):
-        print "G+: ____INIT____"
         # Authenticate and construct service.
         self._gp_service = None
         self._flags = None
@@ -230,89 +215,15 @@ class GooglePlusService(object):
         num_retries = 3
         b_error = True
 
-        class MyRedirectHandler(urllib2.HTTPRedirectHandler):
-            def http_error_302(self, req, fp, code, msg, hdrs):
-
-                if fp.geturl().startswith('http://localhost:8080/?code'):
-                    # This will raise an exception similar to this:
-                    # urllib2.HTTPError: HTTP Error 302: FOUND
-                    return None
-                else:
-                    # Let the default handling occur
-                    return super(MyRedirectHandler, self).http_error_302(req, fp, code, msg, hdrs)
-
         while num_retries > 0 and b_error:
 
             if 0 < num_retries < 3:
                 print "Retrying connection..."
 
             try:
-                #self._gp_service, flags = sample_tools.init(
-                #    argv, 'plus', 'v1', __doc__, __file__,
-                #    scope='https://www.googleapis.com/auth/plus.me')
-
-
-
-                # List the scopes your app requires:
-                SCOPES = ['https://www.googleapis.com/auth/plus.me',
-                          'https://www.googleapis.com/auth/plus.stream.write']
-
-                # The following redirect URI causes Google to return a code to the user's
-                # browser that they then manually provide to your app to complete the
-                # OAuth flow.
-                REDIRECT_URI = 'http://localhost:8080/'
-
-                # For a breakdown of OAuth for Python, see
-                # https://developers.google.com/api-client-library/python/guide/aaa_oauth
-                # CLIENT_ID and CLIENT_SECRET come from your Developers Console project
-                flow = OAuth2WebServerFlow(client_id='458527613508-8r8huecc0ab00i7ca7kngj445nt06df1.apps.googleusercontent.com',
-                           client_secret='dJiglItLVeorg1ic8qd5Bk6y',
-                           scope=SCOPES,
-                           redirect_uri=REDIRECT_URI)
-
-
-                #flow = client.flow_from_clientsecrets(
-                #    'client_secrets.json',
-                #    scope='https://www.googleapis.com/auth/drive.metadata.readonly',
-                #    redirect_uri=REDIRECT_URI)
-
-
-                storage = Storage('plus.dat')
-                credentials = storage.get()
-
-                if credentials is None or credentials.invalid:
-
-                    print "Credential has expired. Trying to refresh..."
-
-                    #*****
-                    #flags = argparser.parse_args()
-                    #credentials = run_flow(flow, storage, flags)
-                    #*****
-
-                    auth_uri = flow.step1_get_authorize_url()
-
-                    print "G+: auth_uri = '%s'" % auth_uri
-
-                    #*****
-                    #handler = MyRedirectHandler()
-                    #opener = urllib2.build_opener(handler)
-                    #*****
-
-                    opener = httplib2.Http();
-                    opener.follow_all_redirects = True;
-                    opener.follow_redirects = True;
-
-                    (response, body) = opener.request(auth_uri)
-
-                    print "response %s" % response
-
-                    # Manual refresh entering the url by console
-                    #auth_code = raw_input('Enter authorization code (parameter of URL): ')
-                    #credentials = flow.step2_exchange(auth_code)
-
-                http_auth = credentials.authorize(httplib2.Http())
-
-                self._gp_service = build('plus', 'v1', http=http_auth)
+                self._gp_service, flags = sample_tools.init(
+                    argv, 'plus', 'v1', __doc__, __file__,
+                    scope='https://www.googleapis.com/auth/plus.me')
 
                 b_error = False
 
@@ -373,3 +284,5 @@ class GooglePlusService(object):
     #    print ('The credentials have been revoked or expired, please re-run'
     #      'the application to re-authorize.')
 
+#if __name__ == '__main__':
+#  main(sys.argv)
