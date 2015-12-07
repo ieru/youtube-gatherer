@@ -13,7 +13,7 @@ import datetime
 import HTMLParser
 import MySQLdb
 
-class GoogleCommentsService(object):
+class YoutubeCommentsService(object):
 
     MAX_RESULTS = 40
     _COMMENTS_COUNT = 0

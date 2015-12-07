@@ -1,9 +1,0 @@
-En el directorio del software ejecutar:
-
-python setup.py py2exe
-
-Esto genera los ficheros bajo el directorio: ./dist
-
-Copiar los fichero a : G:/TFC/RELEASES/<YYYYMMDD>/
-
-Comprimirlo en un .rar para pasarlo por correo.

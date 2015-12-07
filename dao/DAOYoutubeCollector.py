@@ -7,40 +7,18 @@ from mysql.connector import errorcode
 
 import mysql.connector
 import MySQLdb
+from warnings import filterwarnings
+import MySQLdb as Database
+filterwarnings('ignore', category = Database.Warning)
 
 class DAOYoutubeCollector():
 
     def __init__(self):
         print ""
 
-    def durationInSecondsToISO8601Format(self, duration):
-        """
-        duration - ISO 8601 time format
-        examples :
-            'P1W2DT6H21M32S' - 1 week, 2 days, 6 hours, 21 mins, 32 secs,
-            'PT7M15S' - 7 mins, 15 secs
-        """
-
-        weeks = duration / (7 * 3600 * 24)
-        days = (duration - (weeks * (7 * 3600 * 24))) / 3600 * 24
-        hours = (duration - (weeks * (7 * 3600 * 24)) - (days * (3600 * 24))) / 3600
-        minutes = (duration - (weeks * (7 * 3600 * 24)) - (days * (3600 * 24)) - (hours * 3600)) / 60
-        seconds = duration - (weeks * (7 * 3600 * 24)) - (days * (3600 * 24)) - (hours * 3600) - (minutes * 60)
-
-        result = 'P'
-        result += str(weeks) + 'W' if (weeks > 0) else ''
-        result += str(days) + 'D' if (days > 0) else ''
-        result += 'T'
-        result += str(hours) + 'H' if (hours > 0) else ''
-        result += str(minutes) + 'M' if (minutes > 0) else ''
-        result += str(seconds) + 'S' if (seconds > 0) else '0S'
-
-        return result
-
     def formatDateToYoutubeDate(self, str_datetime):
         """ Formato Youtube: 2014-05-28T07:48:00.000Z """
 
-        #print "Formateando fecha: %s " % str_datetime
         date = str(str_datetime)[:10]
         time = str(str_datetime)[11:]
 
@@ -59,7 +37,6 @@ class DAOYoutubeCollector():
         try:
 
             yt_conn = MySQLdb.connect('127.0.0.1', 'root', 'cc1251', 'youtube')
-            #print "\nConexion con mysql establecida"
 
             yt_cursor = yt_conn.cursor()
 
@@ -72,26 +49,6 @@ class DAOYoutubeCollector():
                          'statistics': {'viewCount': '', 'likeCount': '', 'dislikeCount': ''}, "id": row_video[0]}
 
                 video["snippet"]["channelId"] = row_video[1]
-                #video["snippet"]["title"] = row_video[2]
-                #video["snippet"]["description"] = row_video[3]
-                #video["contentDetails"]["duration"] = self.durationInSecondsToISO8601Format(row_video[4])
-                #video["snippet"]["publishedAt"] = self.formatDateToYoutubeDate(row_video[5])
-                #video["statistics"]["viewCount"] = row_video[6]
-                #video["statistics"]["likeCount"] = row_video[7]
-                #video["statistics"]["dislikeCount"] = row_video[8]
-
-                '''
-                # Uncomment to Debug
-                print("id = %s" % row_video[0])
-                print("channelId = %s" % video["snippet"]["channelId"])
-                print("title = %s" % video["snippet"]["title"])
-                print("description = %s" % video["snippet"]["description"])
-                print("duration = %s" % video["contentDetails"]["duration"])
-                print("publishedAt = %s" % video["snippet"]["publishedAt"])
-                print("viewCount = %s" % video["statistics"]["viewCount"])
-                print("likeCount = %s" % video["statistics"]["likeCount"])
-                print("dislikeCount = %s" % video["statistics"]["dislikeCount"])
-                '''
 
                 arr_videos.append(video)
 
@@ -114,3 +71,55 @@ class DAOYoutubeCollector():
                 print "Cerrando conexion con mysql"
                 #yt_conn.close()
 
+
+    def executeLoadInBD(self, query):
+        try:
+
+            yt_conn = MySQLdb.connect('127.0.0.1', 'root', 'cc1251', 'youtube')
+            yt_cursor = yt_conn.cursor()
+
+            yt_cursor.execute(query)
+
+            yt_conn.commit()
+
+            # Uncomment to Debug
+            total = long(str(vars(yt_cursor)['_info']).split(':')[1].strip(' ').split(' ')[0])
+            skipped = long(str(vars(yt_cursor)['_info']).split(':')[3].strip(' ').split(' ')[0])
+
+            print "********************************************************"
+            #print vars(yt_cursor)
+            print "Query: %s" % vars(yt_cursor)['_executed']
+            print "Result: %s" % vars(yt_cursor)['_info']
+            print "Loaded: %s" % str(total - skipped)
+            print "********************************************************"
+
+
+            yt_cursor.close()
+            yt_conn.close()
+
+        except (KeyboardInterrupt, SystemExit):
+            yt_conn.rollback()
+            yt_cursor.close()
+            yt_conn.close()
+            print "\nRolling back database changes..."
+            print "\n\nShutting down youtube-gatherer..."
+            raise
+
+        except mysql.connector.Error as err:
+            if err.errno == errorcode.ER_ACCESS_DENIED_ERROR:
+                print("*** ERROR ***: Something is wrong with your user name or password")
+            elif err.errno == errorcode.ER_BAD_DB_ERROR:
+                print("*** ERROR ***: Database does not exists")
+            elif err.errno == errorcode.CR_CONN_HOST_ERROR:
+                print("*** ERROR ***: Database is not running")
+            else:
+                print(err)
+
+            if yt_conn is not None:
+                yt_conn.close()
+
+
+    def loadDataFilesInDB(self, query):
+
+        self.executeLoadInBD(query)
+        #raw_input('Press any key')

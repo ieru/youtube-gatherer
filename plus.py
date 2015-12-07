@@ -19,22 +19,22 @@
 
 Command-line application that retrieves the list of the user's posts."""
 
-from apiclient.errors import HttpError
+import datetime
 import oauth2client
-from oauth2client import client
-from oauth2client.client import AccessTokenRefreshError
 import time
-#from oauth2client.anyjson import simplejson
-from oauth2client.client import OAuth2WebServerFlow
 import httplib2
-from apiclient.discovery import build
-from oauth2client.tools import argparser, run_flow
-from oauth2client.file import Storage
-
 import urllib2
 import json
 
-__author__ = 'antoniofsanjuan@gmail.com'
+from oauth2client import client
+from oauth2client.client import AccessTokenRefreshError
+from oauth2client.client import OAuth2WebServerFlow
+from apiclient.discovery import build
+from apiclient.errors import HttpError
+from oauth2client.tools import argparser, run_flow
+from oauth2client.file import Storage
+
+__author__ = 'antoniofsanjuan'
 __file__ = 'client_secrets.json'
 
 from apiclient import sample_tools
@@ -43,6 +43,52 @@ from apiclient import sample_tools
 class GooglePlusService(object):
 
     _FS = ';' # Field Separator
+
+
+    def force_decode(self, string):
+
+        codecs=['utf_8', 'ascii', 'latin_1', 'iso8859_2', 'utf_16', 'cp1250', 'cp1251', 'cp1252', 'iso8859_3', 'iso8859_4', 'iso8859_5', 'big5',
+                                            'cp857', 'cp860', 'cp861', 'cp862', 'cp863', 'cp864', 'cp865', 'cp866', 'cp869', 'cp874', 'cp875', 'cp932', 'cp949', 'cp950',
+                                            'cp1006', 'cp1026', 'cp1140', 'cp1253', 'cp1254', 'cp1255', 'cp1256', 'cp1257', 'cp1258', 'euc_jp', 'big5hkscs', 'cp037', 'cp424', 'cp437',
+                                            'euc_jis_2004', 'euc_jisx0213', 'euc_kr', 'gb2312', 'gbk', 'gb18030', 'hz', 'iso2022_jp', 'iso2022_jp_1', 'iso2022_jp_2',
+                                            'iso2022_jp_2004', 'iso2022_jp_3', 'iso2022_jp_ext', 'iso2022_kr', 'cp500', 'cp737', 'cp775', 'cp850', 'cp852', 'cp855', 'cp856',
+                                            'iso8859_6', 'iso8859_7', 'iso8859_8', 'iso8859_9', 'iso8859_10', 'iso8859_13', 'iso8859_14', 'iso8859_15', 'johab', 'koi8_r',
+                                            'koi8_u', 'mac_cyrillic', 'mac_greek', 'mac_iceland', 'mac_latin2', 'mac_roman', 'mac_turkish', 'ptcp154', 'shift_jis',
+                                            'shift_jis_2004', 'shift_jisx0213', 'utf_16_be', 'utf_16_le', 'utf_7']
+        for i in codecs:
+            try:
+                return string.decode(i)
+            except:
+                pass
+
+        return string
+
+    def detect_encoding(self, string):
+
+        codecs=['utf_8', 'ascii', 'latin_1', 'iso8859_2', 'utf_16', 'cp1250', 'cp1251', 'cp1252', 'iso8859_3', 'iso8859_4', 'iso8859_5', 'big5',
+                                            'cp857', 'cp860', 'cp861', 'cp862', 'cp863', 'cp864', 'cp865', 'cp866', 'cp869', 'cp874', 'cp875', 'cp932', 'cp949', 'cp950',
+                                            'cp1006', 'cp1026', 'cp1140', 'cp1253', 'cp1254', 'cp1255', 'cp1256', 'cp1257', 'cp1258', 'euc_jp', 'big5hkscs', 'cp037', 'cp424', 'cp437',
+                                            'euc_jis_2004', 'euc_jisx0213', 'euc_kr', 'gb2312', 'gbk', 'gb18030', 'hz', 'iso2022_jp', 'iso2022_jp_1', 'iso2022_jp_2',
+                                            'iso2022_jp_2004', 'iso2022_jp_3', 'iso2022_jp_ext', 'iso2022_kr', 'cp500', 'cp737', 'cp775', 'cp850', 'cp852', 'cp855', 'cp856',
+                                            'iso8859_6', 'iso8859_7', 'iso8859_8', 'iso8859_9', 'iso8859_10', 'iso8859_13', 'iso8859_14', 'iso8859_15', 'johab', 'koi8_r',
+                                            'koi8_u', 'mac_cyrillic', 'mac_greek', 'mac_iceland', 'mac_latin2', 'mac_roman', 'mac_turkish', 'ptcp154', 'shift_jis',
+                                            'shift_jis_2004', 'shift_jisx0213', 'utf_16_be', 'utf_16_le', 'utf_7']
+        for i in codecs:
+            try:
+                string.decode(i)
+                return i
+            except:
+                pass
+
+        return "unicode"
+
+
+    def formatYoutubeDate(self, yt_datetime):
+        _tmp = time.strptime(yt_datetime[:-5], '%Y-%m-%dT%H:%M:%S')
+        formated_time = datetime.datetime(*_tmp[:6])
+
+        return formated_time
+
 
     def getGooglePlusActitivyInfo(self, activity_id):
 
@@ -81,46 +127,52 @@ class GooglePlusService(object):
               print '\t\t%s: %s' % (comment['actor']['displayName'],comment['object']['content'])
               print '\t\tG+ Likes: %d' % comment['plusoners']['totalItems']
 
+
     def printGooglePlusComment(self, comment):
         if comment is not None:
           print '\t\tG+ Comment ID: %s' % comment['id']
           print '\t\t%s: %s' % (comment['actor']['displayName'],comment['object']['content'])
           print '\t\tG+ Likes: %d' % comment['plusoners']['totalItems']
 
-    def printCSVGooglePlusComment(self, comment):
 
-        if comment is not None:
+    def printCSVGooglePlusComment(self, gp_service, gp_comment, yt_comment_id, num_replies, video_id):
 
-            id_comment = comment['id']
-            author = comment['actor']['displayName']
-            content = comment['object']['content']
-            # Replace tabs with blanks couse problems with delimiters
-            content = content.replace('\t', '   ')
-            # Remove double quotes because couse problems with comment delimiters
-            content = content.replace('"', '')
-            content = '"%s"' % content
+        csv_format_string = "%s"+ self._FS + "%s"+ self._FS + "%s"+ self._FS + "%s"+ self._FS + "%s"+ self._FS + "%s" + self._FS + "%s" + self._FS + "%s" + self._FS + "%s \n"
+        arr_gp_comment_fields = gp_service.getArrayGooglePlusCommentFields(gp_comment)
 
-            dt_published = comment['published']
-            num_replies = comment['plusoners']['totalItems']
+        formatted_published_time = self.formatYoutubeDate(arr_gp_comment_fields[3])
 
-            return "%s"+ self._FS + "%s"+ self._FS + "%s"+ self._FS + "%s"+ self._FS + "%s\n" % (id_comment, author, content, dt_published, num_replies)
+        parsed_comment_body = self.force_decode(arr_gp_comment_fields[2])
+
+        parsed_comment_body = parsed_comment_body[1:]
+        parsed_comment_body = parsed_comment_body[:-1]
+        parsed_comment_body = parsed_comment_body.replace('\"', '\\"')
+        parsed_comment_body = '"' + parsed_comment_body + '"'
+
+        gp_author = self.force_decode(arr_gp_comment_fields[1])
+        gp_author = gp_author.replace('\"', '\\"')
+
+        ts = time.time()
+        str_stored_timestamp = datetime.datetime.fromtimestamp(ts).strftime('%Y-%m-%d %H:%M:%S')
+
+        return csv_format_string % (arr_gp_comment_fields[0], gp_author, parsed_comment_body,
+                                    formatted_published_time, str_stored_timestamp, arr_gp_comment_fields[4],
+                                    yt_comment_id, num_replies, video_id)
+
 
     def getArrayGooglePlusCommentFields(self, comment):
 
-        #print 'DEBUG: getArrayGooglePlusCommentFields() - INIT'
-
         if comment is not None:
 
             id_comment = comment['id']
             author = comment['actor']['displayName']
             content = comment['object']['content']
-            #print 'DEBUG: getArrayGooglePlusCommentFields() - content: %s' % content
+
             # Replace tabs with blanks couse problems with delimiters
             content = content.replace('\t', '   ')
             # Remove double quotes because couse problems with comment delimiters
             content = content.replace('"', '')
             content = '"%s"' % content
-            #print 'DEBUG: getArrayGooglePlusCommentFields() - content: %s' % content
 
             dt_published = comment['published']
             num_replies = comment['plusoners']['totalItems']
@@ -129,36 +181,78 @@ class GooglePlusService(object):
 
     def googlePlusActitivyInfoGenerator(self, activity_id):
 
-        #print 'DEBUG: googlePlusActitivyInfoGenerator() - INIT'
+        comments_resource = None
+        comments_document = None
 
-        num_retries = 3
-        b_error = True
+        retries_counter = 3
+        retries_counter_first = 3
+        nextPageToken = None
+        b_finish = False
 
-        while num_retries > 0 and b_error:
-
+        while retries_counter_first > 0 and comments_document is None:
             try:
+                comments_resource = self._gp_service.comments()
+                comments_document = comments_resource.list(maxResults=500, activityId=activity_id).execute()
 
-                if self._gp_service is None:
-                    self._gp_service, flags = sample_tools.init(
-                        self._argv, 'plus', 'v1', __doc__, __file__,
-                        scope='https://www.googleapis.com/auth/plus.me')
+            except Exception as e:
 
-                b_error = False
-
-            except AccessTokenRefreshError:
-                print "Warming: Credential is expired. Retrying connection..."
-                b_error = True
-                num_retries -= 1
-                self._gp_service = None
-                time.sleep(5)
+                retries_counter_first -= 1
                 continue
 
-        comments_resource = self._gp_service.comments()
-        comments_document = comments_resource.list(maxResults=500, activityId=activity_id).execute()
 
-        if 'items' in comments_document:
-            for comment in comments_document['items']:
-                yield comment
+        while retries_counter > 0 and not b_finish:
+
+            try:
+                # If None, we had an exception. We need to retry from last page +1 of comments
+                if comments_document is None:
+
+                    # Getting the last page processed
+                    comments_document = comments_resource.list(maxResults=500,
+                                                               activityId=activity_id,
+                                                               pageToken=nextPageToken
+                    ).execute()
+
+                    # Getting the NEXT page to continue the process
+                    if 'nextPageToken' in comments_document:
+                        nextPageToken = comments_document['nextPageToken']
+
+                        comments_document = comments_resource.list(maxResults=500,
+                                                                   activityId=activity_id,
+                                                                   pageToken=nextPageToken
+                        ).execute()
+
+
+                if 'items' in comments_document:
+                    for comment in comments_document['items']:
+                        yield comment
+
+                    if 'nextPageToken' in comments_document:
+                        nextPageToken = comments_document['nextPageToken']
+
+                    if nextPageToken is None or nextPageToken == "":
+                        comments_document = None
+                        b_finish = True
+                    else:
+                        comments_document = comments_resource.list(maxResults=500,
+                                                                   activityId=activity_id,
+                                                                   pageToken=nextPageToken
+                        ).execute()
+
+                    # Reset counter on each succesfull retrieve
+                    retries_counter = 3
+
+            except Exception as e:
+
+                #print "\n****************************************************"
+                #print "********** STATUS ERROR: %s **********" % request_error[0]['status']
+                #print "****************************************************\n"
+                #print "\nException: Trying to get next page of G+ comments."
+
+                retries_counter -= 1
+
+                # We only can continue if we have the nextPageToken value
+                if nextPageToken is not None and nextPageToken != "":
+                    continue
 
     def getActivityById(self, comment_id):
 
@@ -199,11 +293,6 @@ class GooglePlusService(object):
                 time.sleep(5)
                 continue
 
-        #print "\tLikes: %s" % activity['object']['plusoners']['totalItems']
-
-        #print '\t%s' % comment['id'], comment['object']['content']
-        #print '\tG+ Likes: %d' % comments_document['plusoners']['totalItems']
-
         return activity['object']['plusoners']['totalItems']
 
     def search(self, query):
@@ -211,35 +300,15 @@ class GooglePlusService(object):
         activities_document = activities_resource.search(maxResults=5,orderBy='best', query=query).execute()
 
         if 'items' in activities_document:
-            ###print 'Number of Activities: %d' % len(activities_document['items'])
+
             for activity in activities_document['items']:
-                #print activity['id'], activity['object']['content']
                 self.getGooglePlusActitivyInfo(self._gp_service, activity['id'])
 
 
+    def get_oauth2_authenticated_service(self):
 
-
-    def __init__(self, argv):
-        print "G+: ____INIT____"
-        # Authenticate and construct service.
-        self._gp_service = None
-        self._flags = None
-        self._argv = argv
-
-        #print "Se ha llamado a  ____init____"
         num_retries = 3
         b_error = True
-
-        class MyRedirectHandler(urllib2.HTTPRedirectHandler):
-            def http_error_302(self, req, fp, code, msg, hdrs):
-
-                if fp.geturl().startswith('http://localhost:8080/?code'):
-                    # This will raise an exception similar to this:
-                    # urllib2.HTTPError: HTTP Error 302: FOUND
-                    return None
-                else:
-                    # Let the default handling occur
-                    return super(MyRedirectHandler, self).http_error_302(req, fp, code, msg, hdrs)
 
         while num_retries > 0 and b_error:
 
@@ -247,11 +316,6 @@ class GooglePlusService(object):
                 print "Retrying connection..."
 
             try:
-                #self._gp_service, flags = sample_tools.init(
-                #    argv, 'plus', 'v1', __doc__, __file__,
-                #    scope='https://www.googleapis.com/auth/plus.me')
-
-
 
                 # List the scopes your app requires:
                 SCOPES = ['https://www.googleapis.com/auth/plus.me',
@@ -293,11 +357,6 @@ class GooglePlusService(object):
 
                     print "G+: auth_uri = '%s'" % auth_uri
 
-                    #*****
-                    #handler = MyRedirectHandler()
-                    #opener = urllib2.build_opener(handler)
-                    #*****
-
                     opener = httplib2.Http();
                     opener.follow_all_redirects = True;
                     opener.follow_redirects = True;
@@ -307,8 +366,9 @@ class GooglePlusService(object):
                     print "response %s" % response
 
                     # Manual refresh entering the url by console
-                    #auth_code = raw_input('Enter authorization code (parameter of URL): ')
-                    #credentials = flow.step2_exchange(auth_code)
+                    auth_code = raw_input('Enter authorization code (parameter of URL): ')
+                    credentials = flow.step2_exchange(auth_code)
+
 
                 http_auth = credentials.authorize(httplib2.Http())
 
@@ -325,51 +385,25 @@ class GooglePlusService(object):
                 continue
 
 
-    #    print ('The credentials have been revoked or expired, please re-run'
-    #      'the application to re-authorize.')
-    #  try:
-    #     getCommentById('z125exihcvf1fzty504ci5nailr4h5g4bs00k')
-         #search(_gp_service, 'samsung S3 opinion')
 
-    #    person = _gp_service.people().get(userId='+JimGomes').execute()
-    #
-    #    print 'Got your ID: %s' % person['displayName']
-    #    print
-    #    print '%-040s -> %s' % ('[Activitity ID]', '[Content]')
-    #
-    #    # Don't execute the request until we reach the paging loop below.
-    #    request = _gp_service.activities().list(
-    #        userId=person['id'], collection='public')
-    #
-    #    comments_resource = _gp_service.comments()
-    #
-    #    # Loop over every activity and print the ID and a short snippet of content.
-    #    while request is not None:
-    #      activities_doc = request.execute()
-    #
-    #
-    #      for item in activities_doc.get('items', []):
-    #        print '%-040s -> %s' % (item['id'], item['object']['content'][:30])
-    #        print '%-040s -> %s' % (item['id'], item['title'][:30])
-    #
-    #
-    #      activity_id = activities_doc['items'][0]
+    def __init__(self, argv):
 
-          #sys.stdout.write('activity_id = %s\n' % activity_id['id'])
-          #print '%-040s -> %s' % (activity_id['id'], activity_id['title'][:30])
+        # Authenticate and construct service.
+        self._gp_service = None
+        self._flags = None
+        self._argv = argv
 
-          #comments_document = comments_resource.list( \
-          #  maxResults=10,activityId=activity_id).execute()
 
-          #if 'items' in comments_document:
-          #  print 'got page with %d' % len( comments_document['items'] )
-          #  for comment in comments_document['items']:
-          #    print comment['id'], comment['object']['content']
+        class MyRedirectHandler(urllib2.HTTPRedirectHandler):
+            def http_error_302(self, req, fp, code, msg, hdrs):
 
-    #    request = _gp_service.activities().list_next(request, activities_doc)
+                if fp.geturl().startswith('http://localhost:8080/?code'):
+                    # This will raise an exception similar to this:
+                    # urllib2.HTTPError: HTTP Error 302: FOUND
+                    return None
+                else:
+                    # Let the default handling occur
+                    return super(MyRedirectHandler, self).http_error_302(req, fp, code, msg, hdrs)
 
-    #  except client.AccessTokenRefreshError:
 
-    #    print ('The credentials have been revoked or expired, please re-run'
-    #      'the application to re-authorize.')
-
+        self.get_oauth2_authenticated_service()

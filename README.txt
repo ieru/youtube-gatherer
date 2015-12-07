@@ -1,4 +1,4 @@
-1. Uncompress all files in one folder. Ex: C:\YoutubeGatherer
+1. Uncompress all files in one folder. Ex: C:\YoutubeCollector
 
 2. Once you execute the exe file, the application open your default Internet browser to ask for permissions within Google Account. The account related with this compilation is:
 

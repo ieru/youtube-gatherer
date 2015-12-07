@@ -20,14 +20,12 @@ class S3manager():
     _OS_HOST_PATH_SEPARATOR = '\\' if (platform.system().lower() == 'windows') else '/'
     _OS_REMOTE_PATH_SEPARATOR = '/'
 
-    def __init__(self):
+    def __init__(self, p_bucket_name):
 
-        #self._bucket_name = self.AWS_ACCESS_KEY_ID.lower() + '-' + 'heroku-ytg'
-        self._bucket_name = 'heroku-ytg-v2'
-        #self._conn = boto.connect_s3(AWS_ACCESS_KEY_ID, AWS_SECRET_ACCESS_KEY)
-        self._conn = boto.connect_s3()
+        if self._bucket_name is None:
+            self._bucket_name = 'heroku-ytg-v2'
 
-        # self._conn = boto.connect_s3() This way get the ID and pass from default user folder "~/.aws/credentials" file
+        self._conn = boto.connect_s3() # This way get the ID and pass from default user folder "~/.aws/credentials" file
 
         try:
             if (self._conn is not None):
@@ -35,8 +33,8 @@ class S3manager():
             else:
                 print "Connection is None"
         except boto.exception.S3ResponseError as e:
-            if (self._bucket is not None):
-                print "Bucket is NOT None."
+            if (self._bucket is None):
+                print "Exception Bucket is NOT None."
             else:
                 print "Bucket IS None.  Except: %s" % e.message
                 exit(1)
@@ -112,7 +110,6 @@ class S3manager():
 
             keys = self._bucket.list()
             for key in keys:
-                #print key.name
                 print key.name
 
         except Exception as e:
@@ -226,10 +223,8 @@ def main(argv):
     # Uncomment to test
     #s3_service.list_files()
 
-    #for key in s3_service.get_files():
-    #    print key.name
-
-    #s3_service.get_files_to_local('G:\\tmp')
+    s3_service.get_files_to_local('G:\\tmp')
+    #s3_service.get_files_to_local('H:\\TFC\\S3 Amazon Backup')
 
     s3_service.check_space_available()
 
